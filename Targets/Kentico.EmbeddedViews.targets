@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="BeforeBuild" Condition="'$(DeployOnBuild)' != 'true'">
+    <ItemGroup>
+      <ViewFiles Include="Views\**\*.cshtml" />
+    </ItemGroup>
+    <PropertyGroup>
+      <EmbeddedInfo>
+          [assembly: Kentico.Web.Mvc.EmbeddedViewAssembly(%40"@(ViewFiles->'%(relativedir)%(filename)%(extension)','",
+        %40"')")]
+      </EmbeddedInfo>
+    </PropertyGroup>
+	<MakeDir Directories="$(IntermediateOutputPath)"/>
+    <WriteLinesToFile File="$(IntermediateOutputPath)\ViewsPathsGenerated.cs" Lines="$(EmbeddedInfo)" Overwrite="true" Encoding="Utf-8" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)\ViewsPathsGenerated.cs" />
+    </ItemGroup>
+  </Target>
+  <Target Name="AfterBuild" Condition="'$(DeployOnBuild)' != 'true'">
+    <AspNetCompiler LogStandardErrorAsError="true" VirtualPath="/" PhysicalPath="$(MSBuildProjectDirectory)" TargetPath="$(IntermediateOutputPath)\Precompiled" Force="true" Debug="false" Updateable="false" Clean="true" />
+    <Exec LogStandardErrorAsError="true" Command="$(ILRepack) /noRepackRes /parallel /wildcards /out:$(IntermediateOutputPath)\Precompiled\bin\$(AssemblyName).dll $(IntermediateOutputPath)\Precompiled\bin\$(AssemblyName).dll $(IntermediateOutputPath)\Precompiled\bin\App_Web_*.dll" />
+  	<!-- Very important, on build must point it to the bin of your main class library -->
+    <Copy SourceFiles="$(IntermediateOutputPath)\Precompiled\bin\$(AssemblyName).dll" DestinationFolder="$(ProjectDir)\..\DynamicRouting.MVC\bin\" />
+    <Copy SourceFiles="$(IntermediateOutputPath)\Precompiled\bin\$(AssemblyName).pdb" DestinationFolder="$(ProjectDir)\..\DynamicRouting.MVC\bin\" />
+  </Target>
+</Project>

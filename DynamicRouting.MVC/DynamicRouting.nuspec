@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package >
+	<metadata>
+		<id>$id$</id>
+		<version>$version$</version>
+		<title>$title$</title>
+		<authors>$author$</authors>
+		<owners>$author$</owners>
+		<projectUrl>https://github.com/KenticoDevTrev/DynamicRouting</projectUrl>
+		<iconUrl>https://raw.githubusercontent.com/Kentico/devnet.kentico.com/master/marketplace/assets/generic-integration.png</iconUrl>
+		<requireLicenseAcceptance>false</requireLicenseAcceptance>
+		<description>$description$</description>
+		<releaseNotes/>
+		<copyright>2019 Kentico Community</copyright>
+		<tags>Dynamic Routing Kentico</tags>
+		<dependencies>
+			<dependency id="Kentico.AspNet.Mvc" version="12.0.29" />
+		</dependencies>
+	</metadata>
+	<files>
+		<!-- Include the compiled views dll -->
+		<file src="bin\Community.DynamicRouting.Kentico.MVC.Views.dll" target = "lib\net461" />
+
+		<!-- Sample of how to include this file in the Content of the Nuget, this would cause the SampleIncludeFile.txt to be copied to the SampleResource folder in the project you import the NuGet package in
+	<file src="SampleResource\SampleIncludedFile.txt" target = "Content\SampleResource" />
+	-->
+	</files>
+</package>
