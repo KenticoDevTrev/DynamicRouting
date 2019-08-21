@@ -20,7 +20,9 @@ namespace DynamicRouting
         public string ClassName { get; set; }
 
         // If any of the Slugs were either new (no existing node slug guid) or they are updated, then updates occurred
-        public bool HasUpdates { get
+        public bool HasUpdates
+        {
+            get
             {
                 return UrlSlugs.Exists(x => x.ExistingNodeSlugGuid == null || x.IsUpdated);
             }
@@ -40,13 +42,23 @@ namespace DynamicRouting
         /// This constructor should be called when a Node is updated, passing the NodeID and it's parent.  This is a starting point 
         /// </summary>
         /// <param name="ParentNodeID">The Parent Node id, this will be the primary root of the NodeItem Build</param>
-        /// <param name="ItemNodeID">The NodeID of the actual page modified, this item will also have it's children checked automatically</param>
-        public NodeItem(int ParentNodeID, int ItemNodeID, NodeItemBuilderSettings Settings)
+        /// <param name="PageNodeID">The NodeID of the actual page modified, this item will also have it's children checked automatically</param>
+        public NodeItem(int PageNodeID, NodeItemBuilderSettings Settings)
         {
-            NodeID = ParentNodeID;
+            if (Settings.BuildSiblings)
+            {
+                // Start with Parent and build children, and children of the PageNodeID
+                NodeID = DocumentHelper.GetDocuments().WhereEquals("NodeID", NodeID).FirstOrDefault().NodeParentID;
+            }
+            else
+            {
+                // Start with the node, and only build itself and it's children children.
+                NodeID = PageNodeID;
+            }
+
+            TreeNode Node = DocumentHelper.GetDocuments().WhereEquals("NodeID", NodeID).FirstOrDefault();
             Parent = null;
             UrlSlugs = new List<NodeUrlSlug>();
-            TreeNode Node = DocumentHelper.GetDocuments().WhereEquals("NodeID", NodeID).FirstOrDefault();
             IsContainer = Node.IsCoupled;
             ClassName = Node.ClassName;
             Children = new List<NodeItem>();
@@ -55,7 +67,7 @@ namespace DynamicRouting
 
             // Builds the slugs for itself
             BuildUrlSlugs();
-            BuildChildren(NodeID);
+            BuildChildren(Settings.BuildSiblings ? PageNodeID : -1);
 
         }
 
@@ -72,7 +84,7 @@ namespace DynamicRouting
             BuildUrlSlugs();
 
             // If build children, then also add the children.
-            if(BuildChildren || Settings.CheckEntireTree)
+            if (BuildChildren || Settings.BuildAllChildren)
             {
                 this.BuildChildren();
             }
@@ -86,7 +98,7 @@ namespace DynamicRouting
         {
             foreach (TreeNode Child in DocumentHelper.GetDocuments().WhereEquals("NodeParentNodeID", NodeID).Columns("NodeID, ClassIsCoupledClass, CLassName"))
             {
-                Children.Add(new NodeItem(this, Child, this.Settings, AlsoBuildChildrenOfNodeID == Child.NodeID));
+                Children.Add(new NodeItem(this, Child, Settings, AlsoBuildChildrenOfNodeID == Child.NodeID));
             }
             ChildrenBuilt = true;
         }
@@ -106,7 +118,8 @@ namespace DynamicRouting
             }
 
             // Import the existing Slugs (Custom if not checking for imports, or all of them)
-            foreach (UrlSlugInfo ExistingSlug in SlugQuery) {
+            foreach (UrlSlugInfo ExistingSlug in SlugQuery)
+            {
                 UrlSlugs.Add(new NodeUrlSlug()
                 {
                     IsCustom = ExistingSlug.IsCustom,
@@ -149,21 +162,25 @@ namespace DynamicRouting
                     };
 
                     // If checking for updates, need to flag that an update was found
-                    if (Settings.CheckingForUpdates) {
+                    if (Settings.CheckingForUpdates)
+                    {
                         var ExistingSlug = UrlSlugs.Where(x => x.CultureCode.Equals(CultureCode, StringComparison.InvariantCultureIgnoreCase)).FirstOrDefault();
-                        if(ExistingSlug != null) {
+                        if (ExistingSlug != null)
+                        {
                             // Update the existing UrlSlug only if it is different and not custom
                             if (!ExistingSlug.UrlSlug.Equals(NodeSlug.UrlSlug))
                             {
                                 ExistingSlug.IsUpdated = true;
                                 ExistingSlug.UrlSlug = NodeSlug.UrlSlug;
-                            } 
-                        } else
+                            }
+                        }
+                        else
                         {
                             // No Slug exists for this culture, add.
                             UrlSlugs.Add(NodeSlug);
                         }
-                    }else
+                    }
+                    else
                     {
                         // Not checking for updates to just adding node slug.
                         UrlSlugs.Add(NodeSlug);
@@ -177,10 +194,10 @@ namespace DynamicRouting
         /// </summary>
         public void CheckChanges()
         {
-            if(HasUpdates && !ChildrenBuilt)
+            if (HasUpdates && !ChildrenBuilt)
             {
                 BuildChildren();
-                foreach(var Child in Children)
+                foreach (var Child in Children)
                 {
                     Child.CheckChanges();
                 }
@@ -195,11 +212,11 @@ namespace DynamicRouting
         public string GetUrlSlug(string CultureCode)
         {
             var UrlSlug = UrlSlugs.Where(x => x.CultureCode.Equals(CultureCode, StringComparison.InvariantCultureIgnoreCase)).FirstOrDefault();
-            if(UrlSlug == null)
+            if (UrlSlug == null)
             {
                 UrlSlug = UrlSlugs.Where(x => x.IsDefault).FirstOrDefault();
             }
-            if(UrlSlug == null)
+            if (UrlSlug == null)
             {
                 UrlSlug = UrlSlugs.FirstOrDefault();
             }
@@ -208,7 +225,8 @@ namespace DynamicRouting
     }
 
 
-    sealed class NodeUrlSlug {
+    sealed class NodeUrlSlug
+    {
         public string CultureCode { get; set; }
         public string UrlSlug { get; set; }
         public bool IsDefault { get; set; }
@@ -243,19 +261,33 @@ namespace DynamicRouting
         /// If True, then will only perform updates where needed, and will not check children beyond the main scope unless a change is found (unless CheckEntireTree is true)
         /// </summary>
         public bool CheckingForUpdates { get; set; } = false;
-        
-        /// <summary>
-        /// If true, will scan the entire tree as it rebuilds or checks for updates.
-        /// </summary>
-        public bool CheckEntireTree { get; set; }
 
-        public NodeItemBuilderSettings(List<string> CultureCodes, string DefaultCultureCode, bool GenerateIfCultureDoesntExist, MacroResolver BaseResolver, bool CheckingForUpdates, bool CheckEntireTree)
+
+        /// <summary>
+        /// If true, then the parent of the main node should be checked along with it's children (the main node's siblings).  Usually set from DynamicRouteHelper.CheckSiblings
+        /// </summary>
+        public bool BuildSiblings { get; set; }
+
+        /// <summary>
+        /// If true, then the Children should be checked on the applicable nodes.  Usually set from DynamicRouteHelper.CheckChildren
+        /// </summary>
+        public bool BuildChildren { get; set; }
+
+        /// <summary>
+        /// If true, then all children need to be checked for updates. Usually set from DynamicRouteHelper.CheckAllChildren
+        /// </summary>
+        public bool BuildAllChildren { get; set; }
+
+        public NodeItemBuilderSettings(List<string> CultureCodes, string DefaultCultureCode, bool GenerateIfCultureDoesntExist, MacroResolver BaseResolver, bool CheckingForUpdates, bool CheckEntireTree, bool BuildSiblings, bool BuildChildren, bool BuildAllChildren)
         {
             this.CultureCodes = CultureCodes;
             this.DefaultCultureCode = DefaultCultureCode;
             this.GenerateIfCultureDoesntExist = GenerateIfCultureDoesntExist;
             this.BaseResolver = BaseResolver;
             this.CheckingForUpdates = CheckingForUpdates;
+            this.BuildSiblings = BuildSiblings;
+            this.BuildChildren = BuildChildren;
+            this.BuildAllChildren = BuildAllChildren;
         }
     }
 }
