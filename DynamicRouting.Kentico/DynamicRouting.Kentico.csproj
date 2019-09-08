@@ -79,6 +79,7 @@
     <Compile Include="Classes\Base\UrlSlugInfoProvider.cs" />
     <Compile Include="Classes\Models\NodeData.cs" />
     <Compile Include="Helpers\DynamicRouteHelper.cs" />
+    <Compile Include="Helpers\DynamicRouteInitializationModule.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

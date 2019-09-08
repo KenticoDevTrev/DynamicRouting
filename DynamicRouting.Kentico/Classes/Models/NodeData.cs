@@ -1,4 +1,5 @@
 ﻿using CMS.DocumentEngine;
+using CMS.EventLog;
 using CMS.Helpers;
 using CMS.Localization;
 using CMS.MacroEngine;
@@ -24,7 +25,7 @@ namespace DynamicRouting
         {
             get
             {
-                return UrlSlugs.Exists(x => x.ExistingNodeSlugGuid == null || x.IsUpdated);
+                return UrlSlugs.Exists(x => ValidationHelper.GetGuid(x.ExistingNodeSlugGuid, Guid.Empty) == Guid.Empty || x.IsNewOrUpdated);
             }
         }
 
@@ -83,8 +84,8 @@ namespace DynamicRouting
             // Build it's slugs
             BuildUrlSlugs();
 
-            // If build children, then also add the children.
-            if (BuildChildren || Settings.BuildAllChildren)
+            // If build children, or settings to build descendents, or if an update was found, build children
+            if (BuildChildren || Settings.BuildDescendents || HasUpdates)
             {
                 this.BuildChildren();
             }
@@ -158,7 +159,7 @@ namespace DynamicRouting
                         CultureCode = CultureCode,
                         IsCustom = false,
                         IsDefault = IsDefaultCulture,
-                        UrlSlug = DocResolver.ResolveMacros(DynamicRouteHelper.GetClassUrlPattern(ClassName)),
+                        UrlSlug = DocResolver.ResolveMacros(DynamicRouteHelper.GetClass(ClassName).ClassURLPattern),
                     };
 
                     // If checking for updates, need to flag that an update was found
@@ -170,7 +171,8 @@ namespace DynamicRouting
                             // Update the existing UrlSlug only if it is different and not custom
                             if (!ExistingSlug.UrlSlug.Equals(NodeSlug.UrlSlug))
                             {
-                                ExistingSlug.IsUpdated = true;
+                                ExistingSlug.IsNewOrUpdated = true;
+                                ExistingSlug.PreviousUrlSlug = ExistingSlug.UrlSlug;
                                 ExistingSlug.UrlSlug = NodeSlug.UrlSlug;
                             }
                         }
@@ -185,21 +187,6 @@ namespace DynamicRouting
                         // Not checking for updates to just adding node slug.
                         UrlSlugs.Add(NodeSlug);
                     }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Checks for any changes for itself and it's children.  If changes are found and children have not been built, then Builds children and runs the CheckChanges on them.
-        /// </summary>
-        public void CheckChanges()
-        {
-            if (HasUpdates && !ChildrenBuilt)
-            {
-                BuildChildren();
-                foreach (var Child in Children)
-                {
-                    Child.CheckChanges();
                 }
             }
         }
@@ -222,6 +209,103 @@ namespace DynamicRouting
             }
             return UrlSlug?.UrlSlug;
         }
+
+        /// <summary>
+        /// Checks if any children have Conflicts that would cause a UrlSlug to match two separate nodes
+        /// </summary>
+        /// <returns>True if Conflicts will arrise, false if no conflicts</returns>
+        public bool ConflictsExist()
+        {
+            // Check itself for conflicts with UrlSlugs
+            foreach (NodeUrlSlug UrlSlug in UrlSlugs)
+            {
+                if (UrlSlug.IsNewOrUpdated)
+                {
+                    if (ValidationHelper.GetGuid(UrlSlug.ExistingNodeSlugGuid, Guid.Empty) == Guid.Empty)
+                    {
+                        // Check for existing Url Slug that matches the new Url
+                        var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                            .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
+                            .WhereNotEquals("NodeID", NodeID)
+                            .FirstOrDefault();
+                        if (MatchingUrlSlug != null)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            // Now Call save children on children if they are built.
+            bool ConflictExists = false;
+            foreach (NodeItem Child in Children)
+            {
+                ConflictExists = (ConflictExists || Child.ConflictsExist());
+            }
+            return ConflictExists;
+        }
+
+        public void SaveChanges()
+        {
+            // Add catch for uniqueness across url and site, no duplicates, how to handle?  revert to node alias path with or without document culture?
+
+            // Check itself for changes and save, then children
+            foreach (NodeUrlSlug UrlSlug in UrlSlugs)
+            {
+                if (UrlSlug.IsNewOrUpdated)
+                {
+                    if (ValidationHelper.GetGuid(UrlSlug.ExistingNodeSlugGuid, Guid.Empty) != Guid.Empty)
+                    {
+                        // Now Update the Url Slug if it's not custom
+                        var ExistingSlug = UrlSlugInfoProvider.GetUrlSlugInfo(UrlSlug.ExistingNodeSlugGuid);
+                        if (!ExistingSlug.IsCustom)
+                        {
+                            ExistingSlug.UrlSlug = UrlSlug.UrlSlug;
+                            UrlSlugInfoProvider.SetUrlSlugInfo(ExistingSlug);
+                        }
+                    }
+                    else
+                    {
+                        // Check for existing Url Slug that matches the new Url
+                        var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                            .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
+                            .WhereNotEquals("NodeID", NodeID)
+                            .FirstOrDefault();
+                        if(MatchingUrlSlug != null)
+                        {
+                            if(Settings.LogConflicts) { 
+                                var CurDoc = DocumentHelper.GetDocument(NodeID, UrlSlug.CultureCode, new TreeProvider());
+                                var ExistingSlugDoc = DocumentHelper.GetDocument(MatchingUrlSlug.NodeID, MatchingUrlSlug.CultureCode, new TreeProvider());
+
+                                // Log Conflict
+                                EventLogProvider.LogEvent("W", "DynamicRouting", "UrlSlugConflict", eventDescription: string.Format("Cannot create a new Url Slug {0} for Document {1} [{2}] because it exists already for {3} [{4}]",
+                                    UrlSlug.UrlSlug,
+                                    CurDoc.NodeAliasPath,
+                                    CurDoc.DocumentCulture,
+                                    ExistingSlugDoc.NodeAliasPath,
+                                    ExistingSlugDoc.DocumentCulture
+                                    ));
+                            }
+                        } else { 
+                            var newSlug = new UrlSlugInfo()
+                            {
+                                UrlSlug = UrlSlug.UrlSlug,
+                                NodeID = NodeID,
+                                CultureCode = UrlSlug.CultureCode,
+                                IsCustom = false
+                            };
+                        }
+                    }
+                }
+            }
+
+            // Now Call save children on children if they are built.
+            foreach (NodeItem Child in Children)
+            {
+                Child.SaveChanges();
+            }
+
+        }
     }
 
 
@@ -231,7 +315,8 @@ namespace DynamicRouting
         public string UrlSlug { get; set; }
         public bool IsDefault { get; set; }
         public bool IsCustom { get; set; }
-        public bool IsUpdated { get; set; } = false;
+        public bool IsNewOrUpdated { get; set; } = false;
+        public string PreviousUrlSlug { get; set; }
         public Guid ExistingNodeSlugGuid { get; set; }
         public NodeUrlSlug()
         {
@@ -274,11 +359,16 @@ namespace DynamicRouting
         public bool BuildChildren { get; set; }
 
         /// <summary>
-        /// If true, then all children need to be checked for updates. Usually set from DynamicRouteHelper.CheckAllChildren
+        /// If true, then all descendents need to be checked for updates. Usually set from DynamicRouteHelper.CheckDescendents
         /// </summary>
-        public bool BuildAllChildren { get; set; }
+        public bool BuildDescendents { get; set; }
 
-        public NodeItemBuilderSettings(List<string> CultureCodes, string DefaultCultureCode, bool GenerateIfCultureDoesntExist, MacroResolver BaseResolver, bool CheckingForUpdates, bool CheckEntireTree, bool BuildSiblings, bool BuildChildren, bool BuildAllChildren)
+        /// <summary>
+        /// If true, then during save A check will be performed for conflicts and will log and not-save routes if conflicts do exist.
+        /// </summary>
+        public bool LogConflicts { get; set; } = false;
+
+        public NodeItemBuilderSettings(List<string> CultureCodes, string DefaultCultureCode, bool GenerateIfCultureDoesntExist, MacroResolver BaseResolver, bool CheckingForUpdates, bool CheckEntireTree, bool BuildSiblings, bool BuildChildren, bool BuildDescendents)
         {
             this.CultureCodes = CultureCodes;
             this.DefaultCultureCode = DefaultCultureCode;
@@ -287,7 +377,7 @@ namespace DynamicRouting
             this.CheckingForUpdates = CheckingForUpdates;
             this.BuildSiblings = BuildSiblings;
             this.BuildChildren = BuildChildren;
-            this.BuildAllChildren = BuildAllChildren;
+            this.BuildDescendents = BuildDescendents;
         }
     }
 }

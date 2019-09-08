@@ -39,6 +39,15 @@ namespace DynamicRouting
             return ProviderObject.GetInfoById(id);
         }
 
+        /// <summary>
+        /// Returns <see cref="UrlSlugInfo"/> with specified ID.
+        /// </summary>
+        /// <param name="Guid"><see cref="UrlSlugInfo"/> ID.</param>
+        public static UrlSlugInfo GetUrlSlugInfo(Guid guid)
+        {
+            return ProviderObject.GetInfoByGuid(guid);
+        }
+
 
         /// <summary>
         /// Sets (updates or inserts) specified <see cref="UrlSlugInfo"/>.
