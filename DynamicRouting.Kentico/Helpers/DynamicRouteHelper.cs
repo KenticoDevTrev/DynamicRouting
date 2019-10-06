@@ -1,83 +1,60 @@
-﻿using CMS.DataEngine;
+﻿using CMS.Base;
+using CMS.DataEngine;
 using CMS.DocumentEngine;
 using CMS.Helpers;
 using CMS.Localization;
 using CMS.MacroEngine;
 using CMS.SiteProvider;
+using DynamicRouting.Helpers;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
+using System.Xml.Serialization;
 
 namespace DynamicRouting
 {
-    /// <summary>
-    /// Event helper, these should be called from Global events to help trigger the proper updates
-    /// </summary>
-    public static class DynamicRouteEventHelper
-    {
-        public static void CultureVariationSettingsChanged(string SiteName)
-        {
-            // Build all, update all
-            DynamicRouteHelper.RebuildRoutesBySite(SiteName);
-        }
-
-        public static void SiteLanguageChanged(string SiteName)
-        {
-            // Build all, update all
-            DynamicRouteHelper.RebuildRoutesBySite(SiteName);
-        }
-
-        public static void SiteDefaultLanguageChanged(string SiteName)
-        {
-            // Build all, update all
-            DynamicRouteHelper.RebuildRoutesBySite(SiteName);
-        }
-
-        public static void ClassUrlPatternChanged(string ClassName)
-        {
-            DynamicRouteHelper.RebuildRoutesByClass(ClassName);
-        }
-
-        public static void DocumentDeleted(int ParentNodeID)
-        {
-            // Build ParentNodes, and Parent's immediate children, build the children and update recursively only if changes detected.
-            DynamicRouteHelper.RebuildRoutesByNode(ParentNodeID);
-        }
-
-        public static void DocumentMoved(int OldParentNodeID, int NewParentNodeID)
-        {
-            // Build both ParentNodes, and Parent's immediate children, build the children and update recursively only if changes detected.
-            DynamicRouteHelper.RebuildRoutesByNode(OldParentNodeID);
-            DynamicRouteHelper.RebuildRoutesByNode(NewParentNodeID);
-        }
-
-        public static void DocumentInsertUpdated(int NodeID)
-        {
-            // Build ParentNode, and Parent's immediate children, build the children and update recursively only if changes detected.
-            DynamicRouteHelper.RebuildRoutesByNode(NodeID);
-        }
-
-        public static void UrlSlugModified(int UrlSlugID)
-        {
-            // Build Node (and upward), and build the children and update recursively only if changes detected.
-            // Convert UrlSlugID to NodeID
-            int NodeID = UrlSlugInfoProvider.GetUrlSlugInfo(UrlSlugID).NodeID;
-            DynamicRouteHelper.RebuildRoutesByNode(NodeID);
-        }
-
-    }
-
-
-
     /// <summary>
     /// Helper methods that execute the checks
     /// </summary>
     public static class DynamicRouteHelper
     {
+
+        /// <summary>
+        /// Gets the CMS Page using Dynamic Routing, returning the culture variation that either matches the given culture or the Slug's culture, or the default site culture if not found.
+        /// </summary>
+        /// <param name="Url">The Url (part after the domain), if empty will use the Current Request</param>
+        /// <param name="Culture">The Culture, not needed if the Url contains the culture that the UrlSlug has as part of it's generation.</param>
+        /// <param name="SiteName">The Site Name, defaults to current site.</param>
+        /// <returns>The Page that matches the Url Slug, for the given or matching culture (or default culture if one isn't found).</returns>
+        public static TreeNode GetPage(string Url = "", string Culture = "", string SiteName = "")
+        {
+            // Load defaults
+            SiteName = (!string.IsNullOrWhiteSpace(SiteName) ? SiteName : SiteContext.CurrentSiteName);
+            string DefaultCulture = SiteContext.CurrentSite.DefaultVisitorCulture;
+            if(!string.IsNullOrWhiteSpace(Url))
+            {
+                Url = EnvironmentHelper.GetUrl(HttpContext.Current.Request.Url.AbsolutePath, HttpContext.Current.Request.ApplicationPath);
+            }
+
+            // Get Page based on Url
+            return DocumentHelper.GetDocuments()
+                .Source(x => x.Join<UrlSlugInfo>("NodeID", "NodeID", JoinTypeEnum.LeftOuter))
+                .Source(x => x.Join<SiteInfo>("NodeSiteID", "SiteID", JoinTypeEnum.Inner))
+                .WhereEquals("UrlSlug", Url)
+                .WhereEquals("SiteName", SiteName)
+                .OrderBy(string.Format("case when CultureCode = '{0}' then 0 else 1", SqlHelper.EscapeQuotes(Culture)))
+                .OrderBy(string.Format("case when CultureCode = '{0}' then 0 else 1", SqlHelper.EscapeQuotes(DefaultCulture)))
+                .FirstOrDefault();
+        }
+
         /// <summary>
         /// If the Site name is empty or null, returns the current site context's site name
         /// </summary>
@@ -166,12 +143,6 @@ namespace DynamicRouting
             else
             {
                 SiteName = GetSiteName(SiteName);
-                var Document = DocumentHelper.GetDocument(new NodeSelectionParameters()
-                {
-                    SelectSingleNode = true,
-                    AliasPath = NodeAliasPath,
-                    SiteName = SiteName
-                }, new TreeProvider());
 
                 // return if any siblings have a class NodeOrder exist
                 return DocumentHelper.GetDocuments()
@@ -268,7 +239,7 @@ namespace DynamicRouting
                 bool BuildDescendents = CheckDescendents(NodeAliasPath, SiteName);
                 bool BuildChildren = CheckChildren(NodeAliasPath, SiteName);
 
-                return new NodeItemBuilderSettings(Cultures, DefaultCulture, GenerateCultureVariationUrlSlugs, BaseMacroResolver, CheckingForUpdates, CheckEntireTree, BuildSiblings, BuildChildren, BuildDescendents);
+                return new NodeItemBuilderSettings(Cultures, DefaultCulture, GenerateCultureVariationUrlSlugs, BaseMacroResolver, CheckingForUpdates, CheckEntireTree, BuildSiblings, BuildChildren, BuildDescendents, SiteName);
             }, new CacheSettings(1440, "GetNodeItemBuilderSettings", NodeAliasPath, SiteName, CheckingForUpdates, CheckEntireTree));
         }
 
@@ -308,7 +279,7 @@ namespace DynamicRouting
                 // Now build URL slugs for the default language always.
                 List<string> Cultures = CultureSiteInfoProvider.GetSiteCultureCodes(SiteName);
 
-                return new NodeItemBuilderSettings(Cultures, DefaultCulture, GenerateCultureVariationUrlSlugs, BaseMacroResolver, CheckingForUpdates, CheckEntireTree, BuildSiblings, BuildChildren, BuildDescendents);
+                return new NodeItemBuilderSettings(Cultures, DefaultCulture, GenerateCultureVariationUrlSlugs, BaseMacroResolver, CheckingForUpdates, CheckEntireTree, BuildSiblings, BuildChildren, BuildDescendents, SiteName);
             }, new CacheSettings(1440, "GetNodeItemBuilderSettings", SiteName, CheckingForUpdates, CheckEntireTree, BuildSiblings, BuildChildren, BuildDescendents));
         }
 
@@ -339,17 +310,204 @@ namespace DynamicRouting
                 SiteName = SiteName
             }, new TreeProvider());
 
-            // Rebuild NodeItem tree structure
+            // Rebuild NodeItem tree structure, this will only affect the initial node syncly.
             NodeItem RootNodeItem = new NodeItem(RootNode.NodeID, BuilderSettings);
             if (ErrorOnConflict())
             {
+                // If error on conflict, everything MUST be done syncly.
+                RootNodeItem.BuildChildren();
                 if (RootNodeItem.ConflictsExist())
                 {
                     throw new Exception("Conflict Exists, aborting save");
                 }
+                // Save changes
+                RootNodeItem.SaveChanges();
+            } else
+            {
+                // Do rest asyncly.
+                QueueUpUrlSlugGeneration(RootNodeItem);
             }
-            // Save changes
-            RootNodeItem.SaveChanges();
+        }
+
+        private static void QueueUpUrlSlugGeneration(NodeItem NodeItem)
+        {
+            // Add item to the Slug Generation Queue
+            SlugGenerationQueueInfo NewQueue = new SlugGenerationQueueInfo()
+            {
+                SlugGenerationQueueNodeItem = SerializeObject<NodeItem>(NodeItem)
+            };
+            SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(NewQueue);
+            
+            // Run Queue checker
+            CheckUrlSlugGenerationQueue();
+        }
+
+        /// <summary>
+        /// Clears the QueueRUnning flag on any tasks that the thread doesn't actually exist (something happened and the thread failed or died without setting the Running to false
+        /// </summary>
+        public static void ClearStuckUrlGenerationTasks()
+        {
+            Process currentProcess = Process.GetCurrentProcess();
+
+            // Set any threads by this application that shows it's running but the Thread doesn't actually exist.
+            SlugGenerationQueueInfoProvider.GetSlugGenerationQueues()
+                .WhereEquals("SlugGenerationQueueRunning", true)
+                .WhereEquals("SlugGenerationQueueApplicationID", SystemHelper.ApplicationIdentifier)
+                .WhereNotIn("SlugGenerationQueueThreadID", currentProcess.Threads.Cast<ProcessThread>().Select(x => x.Id).ToArray())
+                .ForEachObject(x =>
+                {
+                    x.SlugGenerationQueueRunning = false;
+                    SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(x);
+                });
+        }
+
+        /// <summary>
+        /// Checks for Url Slug Generation Queue Items and processes any asyncly.
+        /// </summary>
+        public static void CheckUrlSlugGenerationQueue()
+        {
+            // Clear any stuck tasks
+            ClearStuckUrlGenerationTasks();
+
+            DataSet NextGenerationResult = ConnectionHelper.ExecuteQuery("DynamicRouting.SlugGenerationQueue.GetNextRunnableQueueItem", new QueryDataParameters()
+            {
+                {"@ApplicationID", SystemHelper.ApplicationIdentifier }
+                ,{"@SkipErroredGenerations", SkipErroredGenerations()}
+            });
+
+            if(NextGenerationResult.Tables[0].Rows.Count > 0)
+            {
+                // Queue up task asyncly
+                CMSThread UrlGenerationThread = new CMSThread(new ThreadStart(RunSlugGenerationQueueItem), new ThreadSettings()
+                {
+                    Mode = ThreadModeEnum.Async,
+                    IsBackground = true,
+                    Priority = ThreadPriority.AboveNormal,
+                    UseEmptyContext = false,
+                    CreateLog = true
+                });
+                UrlGenerationThread.Start();
+            }
+        }
+
+        /// <summary>
+        /// Async helper method, grabs the Queue that is set to be "running" for this application and processes.
+        /// </summary>
+        private static void RunSlugGenerationQueueItem()
+        {
+            // Get the current thread ID and the item to run
+            SlugGenerationQueueInfo ItemToRun = SlugGenerationQueueInfoProvider.GetSlugGenerationQueues()
+                .WhereEquals("SlugGenerationQueueRunning", 1)
+                .WhereEquals("SlugGenerationQueueApplicationID", SystemHelper.ApplicationIdentifier)
+                .FirstOrDefault();
+            if(ItemToRun == null)
+            {
+                return;
+            }
+
+            // Update item with thread and times
+            ItemToRun.SlugGenerationQueueThreadID = Thread.CurrentThread.ManagedThreadId;
+            ItemToRun.SlugGenerationQueueStarted = DateTime.Now;
+            ItemToRun.SetValue("SlugGenerationQueueErrors", null);
+            ItemToRun.SetValue("SlugGenerationQueueEnded", null);
+            SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(ItemToRun);
+
+            // Get the NodeItem from the SlugGenerationQueueItem
+            var serializer = new XmlSerializer(typeof(NodeItem));
+            NodeItem QueueItem;
+            using (TextReader reader = new StringReader(ItemToRun.SlugGenerationQueueNodeItem))
+            {
+                QueueItem = (NodeItem)serializer.Deserialize(reader);
+            }
+
+            // Build and Save Items
+            try
+            {
+                QueueItem.BuildChildren();
+                QueueItem.SaveChanges();
+            }catch(Exception ex)
+            {
+                // To do, perhaps create better error like those found in the event log or staging task erorrs?
+                ItemToRun.SlugGenerationQueueErrors = ex.Message;
+                ItemToRun.SlugGenerationQueueRunning = false;
+                ItemToRun.SlugGenerationQueueEnded = DateTime.Now;
+                SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(ItemToRun);
+            }
+            // If completed successfully, delete the item
+            ItemToRun.Delete();
+
+            // Now that we are 'finished' call the Check again to processes next item.
+            CheckUrlSlugGenerationQueue();
+        }
+
+        /// <summary>
+        /// Runs the Generation on the given Slug Generation Queue, runs regardless of whether or not any other queues are running.
+        /// </summary>
+        /// <param name="SlugGenerationQueueID"></param>
+        public static void RunSlugGenerationQueueItem(int SlugGenerationQueueID)
+        {
+            SlugGenerationQueueInfo ItemToRun = SlugGenerationQueueInfoProvider.GetSlugGenerationQueues()
+                .WhereEquals("SlugGenerationQueueID", SlugGenerationQueueID)
+                .FirstOrDefault();
+            if (ItemToRun == null)
+            {
+                return;
+            }
+
+            // Update item with thread and times
+            ItemToRun.SlugGenerationQueueThreadID = Thread.CurrentThread.ManagedThreadId;
+            ItemToRun.SlugGenerationQueueStarted = DateTime.Now;
+            ItemToRun.SlugGenerationQueueRunning = true;
+            ItemToRun.SlugGenerationQueueApplicationID = SystemHelper.ApplicationIdentifier;
+            ItemToRun.SetValue("SlugGenerationQueueErrors", null);
+            ItemToRun.SetValue("SlugGenerationQueueEnded", null);
+            SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(ItemToRun);
+
+            // Get the NodeItem from the SlugGenerationQueueItem
+            var serializer = new XmlSerializer(typeof(NodeItem));
+            NodeItem QueueItem;
+            using (TextReader reader = new StringReader(ItemToRun.SlugGenerationQueueNodeItem))
+            {
+                QueueItem = (NodeItem)serializer.Deserialize(reader);
+            }
+
+            // Build and Save Items
+            try
+            {
+                QueueItem.BuildChildren();
+                QueueItem.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                // To do, perhaps create better error like those found in the event log or staging task erorrs?
+                ItemToRun.SlugGenerationQueueErrors = ex.Message;
+                ItemToRun.SlugGenerationQueueRunning = false;
+                ItemToRun.SlugGenerationQueueEnded = DateTime.Now;
+                SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(ItemToRun);
+            }
+            // If completed successfully, delete the item
+            ItemToRun.Delete();
+        }
+
+        /// <summary>
+        /// If true, then other queued Url Slug Generation tasks will be executed even if one has an error.  Risk is that you could end up with a change waiting to processes that was altered by a later task, thus reverting the true value possibly.
+        /// </summary>
+        /// <returns></returns>
+        private static bool SkipErroredGenerations()
+        {
+            // TODO: Get from setting
+            return false;
+        }
+
+        private static string SerializeObject<T>(this T toSerialize)
+        {
+            XmlSerializer xmlSerializer = new XmlSerializer(toSerialize.GetType());
+
+            using (StringWriter textWriter = new StringWriter())
+            {
+                xmlSerializer.Serialize(textWriter, toSerialize);
+                return textWriter.ToString();
+            }
         }
 
         /// <summary>
@@ -414,14 +572,22 @@ namespace DynamicRouting
 
             // Build and save
             NodeItem GivenNodeItem = new NodeItem(NodeID, Settings);
-            if(ErrorOnConflict())
+            if (ErrorOnConflict())
             {
-                if(GivenNodeItem.ConflictsExist())
+                // If error on conflict, everything MUST be done syncly.
+                GivenNodeItem.BuildChildren();
+                if (GivenNodeItem.ConflictsExist())
                 {
                     throw new Exception("Conflict Exists, aborting save");
                 }
+                // Save changes
+                GivenNodeItem.SaveChanges();
             }
-            GivenNodeItem.SaveChanges();
+            else
+            {
+                // Do rest asyncly.
+                QueueUpUrlSlugGeneration(GivenNodeItem);
+            }
         }
 
         #region "Cached Helpers"
@@ -429,7 +595,7 @@ namespace DynamicRouting
         // TO DO, get from setting
         public static bool ErrorOnConflict()
         {
-            return true;
+            return false;
         }
 
         public static SiteInfo GetSite(int SiteID)
@@ -472,4 +638,6 @@ namespace DynamicRouting
         #endregion  
 
     }
+
+
 }

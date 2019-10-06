@@ -3,12 +3,14 @@ using CMS.EventLog;
 using CMS.Helpers;
 using CMS.Localization;
 using CMS.MacroEngine;
+using CMS.SiteProvider;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
 
 namespace DynamicRouting
 {
@@ -18,7 +20,11 @@ namespace DynamicRouting
         public List<NodeUrlSlug> UrlSlugs { get; set; }
         public bool IsContainer { get; set; }
 
+        public bool SavedAlready { get; set; } = false;
+
         public string ClassName { get; set; }
+
+        public int AlsoBuildNodeID { get; set; } = -1;
 
         // If any of the Slugs were either new (no existing node slug guid) or they are updated, then updates occurred
         public bool HasUpdates
@@ -36,7 +42,6 @@ namespace DynamicRouting
         public List<NodeItem> Children { get; set; }
 
         public bool ChildrenBuilt { get; set; } = false;
-
 
 
         /// <summary>
@@ -68,8 +73,12 @@ namespace DynamicRouting
 
             // Builds the slugs for itself
             BuildUrlSlugs();
-            BuildChildren(Settings.BuildSiblings ? PageNodeID : -1);
 
+            // Save itself syncly, the rest will be done asyncly.
+            SaveChanges(false);
+
+            // This will possibly be something other than -1 only on the initial node based on settings.
+            AlsoBuildNodeID = Settings.BuildSiblings ? PageNodeID : -1;
         }
 
         public NodeItem(NodeItem parent, TreeNode Node, NodeItemBuilderSettings Settings, bool BuildChildren = false)
@@ -95,11 +104,11 @@ namespace DynamicRouting
         /// Builds the child items
         /// </summary>
         /// <param name="AlsoBuildChildrenOfNodeID">The child that matches this NodeID will also have it's children built.</param>
-        public void BuildChildren(int AlsoBuildChildrenOfNodeID = -1)
+        public void BuildChildren()
         {
             foreach (TreeNode Child in DocumentHelper.GetDocuments().WhereEquals("NodeParentNodeID", NodeID).Columns("NodeID, ClassIsCoupledClass, CLassName"))
             {
-                Children.Add(new NodeItem(this, Child, Settings, AlsoBuildChildrenOfNodeID == Child.NodeID));
+                Children.Add(new NodeItem(this, Child, Settings, AlsoBuildNodeID == Child.NodeID));
             }
             ChildrenBuilt = true;
         }
@@ -245,70 +254,83 @@ namespace DynamicRouting
             return ConflictExists;
         }
 
-        public void SaveChanges()
+        public void SaveChanges(bool SaveChildren = true)
         {
+
+            bool ShouldSaveChildren = SaveChildren || SavedAlready;
+
             // Add catch for uniqueness across url and site, no duplicates, how to handle?  revert to node alias path with or without document culture?
-
-            // Check itself for changes and save, then children
-            foreach (NodeUrlSlug UrlSlug in UrlSlugs)
+            if (!SavedAlready)
             {
-                if (UrlSlug.IsNewOrUpdated)
+                // Check itself for changes and save, then children
+                foreach (NodeUrlSlug UrlSlug in UrlSlugs)
                 {
-                    if (ValidationHelper.GetGuid(UrlSlug.ExistingNodeSlugGuid, Guid.Empty) != Guid.Empty)
+                    if (UrlSlug.IsNewOrUpdated)
                     {
-                        // Now Update the Url Slug if it's not custom
-                        var ExistingSlug = UrlSlugInfoProvider.GetUrlSlugInfo(UrlSlug.ExistingNodeSlugGuid);
-                        if (!ExistingSlug.IsCustom)
+                        if (ValidationHelper.GetGuid(UrlSlug.ExistingNodeSlugGuid, Guid.Empty) != Guid.Empty)
                         {
-                            ExistingSlug.UrlSlug = UrlSlug.UrlSlug;
-                            UrlSlugInfoProvider.SetUrlSlugInfo(ExistingSlug);
-                        }
-                    }
-                    else
-                    {
-                        // Check for existing Url Slug that matches the new Url
-                        var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
-                            .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
-                            .WhereNotEquals("NodeID", NodeID)
-                            .FirstOrDefault();
-                        if(MatchingUrlSlug != null)
-                        {
-                            if(Settings.LogConflicts) { 
-                                var CurDoc = DocumentHelper.GetDocument(NodeID, UrlSlug.CultureCode, new TreeProvider());
-                                var ExistingSlugDoc = DocumentHelper.GetDocument(MatchingUrlSlug.NodeID, MatchingUrlSlug.CultureCode, new TreeProvider());
-
-                                // Log Conflict
-                                EventLogProvider.LogEvent("W", "DynamicRouting", "UrlSlugConflict", eventDescription: string.Format("Cannot create a new Url Slug {0} for Document {1} [{2}] because it exists already for {3} [{4}]",
-                                    UrlSlug.UrlSlug,
-                                    CurDoc.NodeAliasPath,
-                                    CurDoc.DocumentCulture,
-                                    ExistingSlugDoc.NodeAliasPath,
-                                    ExistingSlugDoc.DocumentCulture
-                                    ));
-                            }
-                        } else { 
-                            var newSlug = new UrlSlugInfo()
+                            // Now Update the Url Slug if it's not custom
+                            var ExistingSlug = UrlSlugInfoProvider.GetUrlSlugInfo(UrlSlug.ExistingNodeSlugGuid);
+                            if (!ExistingSlug.IsCustom)
                             {
-                                UrlSlug = UrlSlug.UrlSlug,
-                                NodeID = NodeID,
-                                CultureCode = UrlSlug.CultureCode,
-                                IsCustom = false
-                            };
+                                ExistingSlug.UrlSlug = UrlSlug.UrlSlug;
+                                UrlSlugInfoProvider.SetUrlSlugInfo(ExistingSlug);
+                            }
+                        }
+                        else
+                        {
+                            // Check for existing Url Slug that matches the new Url
+                            var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                                .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
+                                .WhereNotEquals("NodeID", NodeID)
+                                .FirstOrDefault();
+                            if (MatchingUrlSlug != null)
+                            {
+                                if (Settings.LogConflicts)
+                                {
+                                    var CurDoc = DocumentHelper.GetDocument(NodeID, UrlSlug.CultureCode, new TreeProvider());
+                                    var ExistingSlugDoc = DocumentHelper.GetDocument(MatchingUrlSlug.NodeID, MatchingUrlSlug.CultureCode, new TreeProvider());
+
+                                    // Log Conflict
+                                    EventLogProvider.LogEvent("W", "DynamicRouting", "UrlSlugConflict", eventDescription: string.Format("Cannot create a new Url Slug {0} for Document {1} [{2}] because it exists already for {3} [{4}]",
+                                        UrlSlug.UrlSlug,
+                                        CurDoc.NodeAliasPath,
+                                        CurDoc.DocumentCulture,
+                                        ExistingSlugDoc.NodeAliasPath,
+                                        ExistingSlugDoc.DocumentCulture
+                                        ));
+                                }
+                            }
+                            else
+                            {
+                                var newSlug = new UrlSlugInfo()
+                                {
+                                    UrlSlug = UrlSlug.UrlSlug,
+                                    NodeID = NodeID,
+                                    CultureCode = UrlSlug.CultureCode,
+                                    IsCustom = false
+                                };
+                            }
                         }
                     }
                 }
+                // Mark this as saved already
+                SavedAlready = true;
             }
 
             // Now Call save children on children if they are built.
-            foreach (NodeItem Child in Children)
+            if (ShouldSaveChildren)
             {
-                Child.SaveChanges();
+                foreach (NodeItem Child in Children)
+                {
+                    Child.SaveChanges();
+                }
             }
-
         }
     }
 
 
+    [Serializable]
     sealed class NodeUrlSlug
     {
         public string CultureCode { get; set; }
@@ -324,8 +346,14 @@ namespace DynamicRouting
         }
     }
 
+    [Serializable]
     sealed class NodeItemBuilderSettings
     {
+        /// <summary>
+        /// Mainly stored for serialization so the Macro Resolver can be restored after deserialization
+        /// </summary>
+        public string SiteName { get; set; }
+
         /// <summary>
         /// List of all Culture Codes for the site.
         /// </summary>
@@ -338,10 +366,29 @@ namespace DynamicRouting
         /// If true, a Url Slug will be generated for a culture of a Node even if that document doesn't explicitely exist.
         /// </summary>
         public bool GenerateIfCultureDoesntExist { get; set; }
+
+
+        [NonSerialized]
+        private MacroResolver _BaseResolver;
+
         /// <summary>
         /// The Base Macro Resolver, this is used in building the Url Slugs.
         /// </summary>
-        public MacroResolver BaseResolver { get; set; }
+        [XmlIgnore]
+        public MacroResolver BaseResolver { get {
+                if(_BaseResolver == null)
+                {
+                    // Rebuild
+                    SiteInfo Site = SiteInfoProvider.GetSiteInfo(SiteName);
+                    _BaseResolver = MacroResolver.GetInstance();
+                    _BaseResolver.AddAnonymousSourceData(new object[] { Site });
+                }
+                return _BaseResolver;
+            } set
+            {
+                _BaseResolver = value;
+            }
+        }
         /// <summary>
         /// If True, then will only perform updates where needed, and will not check children beyond the main scope unless a change is found (unless CheckEntireTree is true)
         /// </summary>
@@ -368,8 +415,30 @@ namespace DynamicRouting
         /// </summary>
         public bool LogConflicts { get; set; } = false;
 
-        public NodeItemBuilderSettings(List<string> CultureCodes, string DefaultCultureCode, bool GenerateIfCultureDoesntExist, MacroResolver BaseResolver, bool CheckingForUpdates, bool CheckEntireTree, bool BuildSiblings, bool BuildChildren, bool BuildDescendents)
+        /// <summary>
+        /// Should only be used for deserialization
+        /// </summary>
+        public NodeItemBuilderSettings()
         {
+
+        }
+
+        /// <summary>
+        /// Constructor of the NodeItemBuilderSettings that is used to guide the build processes.
+        /// </summary>
+        /// <param name="CultureCodes">List of the site's culture code</param>
+        /// <param name="DefaultCultureCode">The site's default culture code</param>
+        /// <param name="GenerateIfCultureDoesntExist">If the slugs should generate for each culture even if they don't exist.</param>
+        /// <param name="BaseResolver">The Base Macro Resolver</param>
+        /// <param name="CheckingForUpdates">If updates should be checked</param>
+        /// <param name="CheckEntireTree">If the entire tree needs to be checked, usually triggered by site, culture, or page type changes</param>
+        /// <param name="BuildSiblings">If siblings need to be built (if NodeOrder is found)</param>
+        /// <param name="BuildChildren">If the children of the item need to be checked (has various Parent attributes)</param>
+        /// <param name="BuildDescendents">If descendents need to be checked even if the parent of it doesn't change.</param>
+        /// <param name="SiteName">The SiteName</param>
+        public NodeItemBuilderSettings(List<string> CultureCodes, string DefaultCultureCode, bool GenerateIfCultureDoesntExist, MacroResolver BaseResolver, bool CheckingForUpdates, bool CheckEntireTree, bool BuildSiblings, bool BuildChildren, bool BuildDescendents, string SiteName)
+        {
+            this.SiteName = SiteName;
             this.CultureCodes = CultureCodes;
             this.DefaultCultureCode = DefaultCultureCode;
             this.GenerateIfCultureDoesntExist = GenerateIfCultureDoesntExist;

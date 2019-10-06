@@ -67,6 +67,7 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Web" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -75,11 +76,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Classes\Base\SlugGenerationQueueInfo.cs" />
+    <Compile Include="Classes\Base\SlugGenerationQueueInfoProvider.cs" />
     <Compile Include="Classes\Base\UrlSlugInfo.cs" />
     <Compile Include="Classes\Base\UrlSlugInfoProvider.cs" />
     <Compile Include="Classes\Models\NodeData.cs" />
+    <Compile Include="Helpers\DynamicRouteEventHelper.cs" />
     <Compile Include="Helpers\DynamicRouteHelper.cs" />
     <Compile Include="Helpers\DynamicRouteInitializationModule.cs" />
+    <Compile Include="Helpers\EnvironmentHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
