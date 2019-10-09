@@ -33,7 +33,7 @@ namespace DynamicRouting
             TouchCacheDependencies = true,
             DependsOn = new List<ObjectDependency>()
             {
-                new ObjectDependency("NodeID", "cms.node", ObjectDependencyEnum.Required),
+                new ObjectDependency("UrlSlugNodeID", "cms.node", ObjectDependencyEnum.Required),
             },
         };
 
@@ -76,15 +76,15 @@ namespace DynamicRouting
         /// What node this URL slug belongs to.
         /// </summary>
         [DatabaseField]
-        public virtual int NodeID
+        public virtual int UrlSlugNodeID
         {
             get
             {
-                return ValidationHelper.GetInteger(GetValue("NodeID"), 0);
+                return ValidationHelper.GetInteger(GetValue("UrlSlugNodeID"), 0);
             }
             set
             {
-                SetValue("NodeID", value);
+                SetValue("UrlSlugNodeID", value);
             }
         }
 
@@ -93,15 +93,15 @@ namespace DynamicRouting
         /// The Culture this URL slug applies to.  Can be null if this URL slug is the fall back URL for all cultural variations of this node..
         /// </summary>
         [DatabaseField]
-        public virtual string CultureCode
+        public virtual string UrlSlugCultureCode
         {
             get
             {
-                return ValidationHelper.GetString(GetValue("CultureCode"), String.Empty);
+                return ValidationHelper.GetString(GetValue("UrlSlugCultureCode"), String.Empty);
             }
             set
             {
-                SetValue("CultureCode", value, String.Empty);
+                SetValue("UrlSlugCultureCode", value, String.Empty);
             }
         }
 
@@ -110,15 +110,15 @@ namespace DynamicRouting
         /// If checked, this indicates that the Url Slug was added manually and should not be overwritten during document URL slug updates..
         /// </summary>
         [DatabaseField]
-        public virtual bool IsCustom
+        public virtual bool UrlSlugIsCustom
         {
             get
             {
-                return ValidationHelper.GetBoolean(GetValue("IsCustom"), false);
+                return ValidationHelper.GetBoolean(GetValue("UrlSlugIsCustom"), false);
             }
             set
             {
-                SetValue("IsCustom", value);
+                SetValue("UrlSlugIsCustom", value);
             }
         }
 

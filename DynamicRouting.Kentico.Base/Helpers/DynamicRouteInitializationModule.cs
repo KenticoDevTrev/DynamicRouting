@@ -57,10 +57,10 @@ namespace DynamicRouting.Kentico
             // save previous Url to 301 redirects
             // Get DocumentID
             var Document = DocumentHelper.GetDocuments()
-                .WhereEquals("NodeID", UrlSlug.NodeID)
+                .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
                 .CombineWithDefaultCulture()
                 .CombineWithAnyCulture()
-                .Culture(UrlSlug.CultureCode)
+                .Culture(UrlSlug.UrlSlugCultureCode)
                 .FirstOrDefault();
             var AlternativeUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
                 .WhereEquals("AlternativeUrlUrl", UrlSlug.UrlSlug)
@@ -71,7 +71,7 @@ namespace DynamicRouting.Kentico
                 {
                     // If Same NodeID, then replace the DocumentID with the current one as now the document has the culture code.
                     var AlternativeUrlDocument = DocumentHelper.GetDocument(AlternativeUrl.AlternativeUrlDocumentID, new TreeProvider());
-                    if (AlternativeUrlDocument.NodeID == UrlSlug.NodeID)
+                    if (AlternativeUrlDocument.NodeID == UrlSlug.UrlSlugNodeID)
                     {
                         AlternativeUrl.AlternativeUrlDocumentID = Document.DocumentID;
                         AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);

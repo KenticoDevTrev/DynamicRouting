@@ -46,6 +46,10 @@ namespace DynamicRouting
         /// <param name="infoObj"><see cref="SlugGenerationQueueInfo"/> to be set.</param>
         public static void SetSlugGenerationQueueInfo(SlugGenerationQueueInfo infoObj)
         {
+            // Set required field if not set.
+            if(DataHelper.GetNull(infoObj.GetValue("SlugGenerationQueueRunning")) == null) {
+                infoObj.SlugGenerationQueueRunning = false;
+            }
             ProviderObject.SetInfo(infoObj);
         }
 

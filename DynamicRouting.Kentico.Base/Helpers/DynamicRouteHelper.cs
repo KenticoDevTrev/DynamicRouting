@@ -37,15 +37,18 @@ namespace DynamicRouting
         /// <param name="Culture">The Culture, not needed if the Url contains the culture that the UrlSlug has as part of it's generation.</param>
         /// <param name="SiteName">The Site Name, defaults to current site.</param>
         /// <returns>The Page that matches the Url Slug, for the given or matching culture (or default culture if one isn't found).</returns>
-        public static TreeNode GetPage(string Url = "", string Culture = "", string SiteName = "")
+        public static ITreeNode GetPage(string Url = "", string Culture = "", string SiteName = "")
         {
             // Load defaults
             SiteName = (!string.IsNullOrWhiteSpace(SiteName) ? SiteName : SiteContext.CurrentSiteName);
             string DefaultCulture = SiteContext.CurrentSite.DefaultVisitorCulture;
-            if (!string.IsNullOrWhiteSpace(Url))
+            if (string.IsNullOrWhiteSpace(Url))
             {
                 Url = EnvironmentHelper.GetUrl(HttpContext.Current.Request.Url.AbsolutePath, HttpContext.Current.Request.ApplicationPath);
             }
+
+            // Clean the Url
+            Url = GetCleanUrl(Url, SiteName);
 
             // Get Page based on Url
             return CacheHelper.Cache<TreeNode>(cs =>
@@ -55,15 +58,58 @@ namespace DynamicRouting
                     cs.CacheDependency = CacheHelper.GetCacheDependency("dynamicrouting.urlslug|all");
                 }
 
-                return DocumentHelper.GetDocuments()
-                .Source(x => x.Join<UrlSlugInfo>("NodeID", "NodeID", JoinTypeEnum.LeftOuter))
-                .Source(x => x.Join<SiteInfo>("NodeSiteID", "SiteID", JoinTypeEnum.Inner))
-                .WhereEquals("UrlSlug", Url)
-                .WhereEquals("SiteName", SiteName)
-                .OrderBy(string.Format("case when CultureCode = '{0}' then 0 else 1", SqlHelper.EscapeQuotes(Culture)))
-                .OrderBy(string.Format("case when CultureCode = '{0}' then 0 else 1", SqlHelper.EscapeQuotes(DefaultCulture)))
-                .FirstOrDefault();
+                // Using custom query as Kentico's API was not properly handling a Join and where.
+                DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
+                {
+                    {"@Url", Url },
+                    {"@Culture", Culture },
+                    {"@DefaultCulture", DefaultCulture },
+                    { "@SiteName", SiteName }
+                }, topN: 1).Tables[0];
+                if(NodeTable.Rows.Count > 0) {
+                    return TreeNode.New(NodeTable.Rows[0]);
+                }
+                 else
+                {
+                    return null;
+                }
             }, new CacheSettings(1440, "DynamicRoutine.GetPage", Url, Culture, DefaultCulture, SiteName));
+        }
+
+        /// <summary>
+        /// Cleans up the Url given the site settings
+        /// </summary>
+        /// <param name="Url">The Relative Url</param>
+        /// <param name="SiteName">The Site name to get settings from</param>
+        /// <returns>The cleaned Url.</returns>
+        public static string GetCleanUrl(string Url, string SiteName)
+        {
+            // Remove trailing or double //'s and any url parameters / anchors
+            Url = "/" + Url.Trim("/ ".ToCharArray()).Split('?')[0].Split('#')[0];
+
+            // Replace forbidden characters
+            // Remove / from the forbidden characters because that is part of the Url, of course.
+            string ForbiddenCharacters = URLHelper.ForbiddenURLCharacters(SiteName).Replace("/", "");
+            string Replacement = URLHelper.ForbiddenCharactersReplacement(SiteName).ToString();
+            Url = ReplaceAnyCharInString(Url, ForbiddenCharacters.ToCharArray(), Replacement);
+
+            // Escape special url characters
+            Url = URLHelper.EscapeSpecialCharacters(Url);
+
+            return Url;
+        }
+
+        /// <summary>
+        /// Replaces any char in the char array with the replace value for the string
+        /// </summary>
+        /// <param name="value">The string to replace values in</param>
+        /// <param name="CharsToReplace">The character array of characters to replace</param>
+        /// <param name="ReplaceValue">The value to replace them with</param>
+        /// <returns></returns>
+        private static string ReplaceAnyCharInString(string value, char[] CharsToReplace, string ReplaceValue)
+        {
+            string[] temp = value.Split(CharsToReplace, StringSplitOptions.RemoveEmptyEntries);
+            return String.Join(ReplaceValue, temp);
         }
 
         #endregion
@@ -309,6 +355,7 @@ namespace DynamicRouting
         /// <param name="SiteName">The Site name</param>
         public static void RebuildRoutesBySite(string SiteName)
         {
+            //EventLogProvider.LogInformation("DynamicRouteTesting", "SyncBuildStart", eventDescription: DateTime.Now.ToString() + " " + DateTime.Now.Millisecond.ToString());
             // Get NodeItemBuilderSettings
             NodeItemBuilderSettings BuilderSettings = GetNodeItemBuilderSettings(SiteName, true, true, true, true, true);
 
@@ -336,6 +383,7 @@ namespace DynamicRouting
                 // Do rest asyncly.
                 QueueUpUrlSlugGeneration(RootNodeItem);
             }
+            //EventLogProvider.LogInformation("DynamicRouteTesting", "SyncBuildEnd", eventDescription: DateTime.Now.ToString() + " " + DateTime.Now.Millisecond.ToString());
         }
 
         /// <summary>
@@ -376,6 +424,29 @@ namespace DynamicRouting
         public static void RebuildRoutesByNode(int NodeID)
         {
             RebuildRoutesByNode(NodeID, null);
+        }
+
+        /// <summary>
+        /// Rebuilds the node and all child node
+        /// </summary>
+        /// <param name="NodeID">The Node ID</param>
+        public static void RebuildSubtreeRoutesByNode(int NodeID)
+        {
+            // Set up settings
+            // Get Site from Node
+            TreeNode Page = DocumentHelper.GetDocuments()
+                .WhereEquals("NodeID", NodeID)
+                .Columns("NodeSiteID")
+                .FirstOrDefault();
+
+            // Get Settings based on the Page itself
+            NodeItemBuilderSettings Settings = GetNodeItemBuilderSettings(Page.NodeAliasPath, GetSite(Page.NodeSiteID).SiteName, true, false);
+            
+            // Check all descendents
+            Settings.BuildDescendents = true;
+            Settings.CheckingForUpdates = false;
+
+            RebuildRoutesByNode(NodeID, Settings);
         }
 
         /// <summary>
@@ -472,7 +543,7 @@ namespace DynamicRouting
                 ,{"@SkipErroredGenerations", SkipErroredGenerations()}
             });
 
-            if(NextGenerationResult.Tables[0].Rows.Count > 0)
+            if(NextGenerationResult.Tables.Count > 0 && NextGenerationResult.Tables[0].Rows.Count > 0)
             {
                 // Queue up task asyncly
                 CMSThread UrlGenerationThread = new CMSThread(new ThreadStart(RunSlugGenerationQueueItem), new ThreadSettings()
@@ -492,6 +563,7 @@ namespace DynamicRouting
         /// </summary>
         private static void RunSlugGenerationQueueItem()
         {
+            //EventLogProvider.LogInformation("DynamicRouteTesting", "AsyncBuildStart", eventDescription: DateTime.Now.ToString() + " " + DateTime.Now.Millisecond.ToString());
             // Get the current thread ID and the item to run
             SlugGenerationQueueInfo ItemToRun = SlugGenerationQueueInfoProvider.GetSlugGenerationQueues()
                 .WhereEquals("SlugGenerationQueueRunning", 1)
@@ -521,19 +593,45 @@ namespace DynamicRouting
             {
                 QueueItem.BuildChildren();
                 QueueItem.SaveChanges();
-            }catch(Exception ex)
+
+                // If completed successfully, delete the item
+                ItemToRun.Delete();
+
+                // Now that we are 'finished' call the Check again to processes next item.
+                CheckUrlSlugGenerationQueue();
+            }
+            catch(Exception ex)
             {
                 ItemToRun.SlugGenerationQueueErrors = EventLogProvider.GetExceptionLogMessage(ex);
                 ItemToRun.SlugGenerationQueueRunning = false;
                 ItemToRun.SlugGenerationQueueEnded = DateTime.Now;
                 SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(ItemToRun);
 
-            }
-            // If completed successfully, delete the item
-            ItemToRun.Delete();
+                // Commit transaction so next check will see this change
+                CommitTransaction(true);
 
-            // Now that we are 'finished' call the Check again to processes next item.
-            CheckUrlSlugGenerationQueue();
+                // Now that we are 'finished' call the Check again to processes next item.
+                CheckUrlSlugGenerationQueue();
+            }
+            //EventLogProvider.LogInformation("DynamicRouteTesting", "AsyncBuildComplete", eventDescription: DateTime.Now.ToString()+" "+DateTime.Now.Millisecond.ToString());
+        }
+
+        /// <summary>
+        /// Commits the current transaction so the previous item's content is in the database to be called upon, avoids null lookups on related items.
+        /// <paramref name="StartNewTransaction">Start a new transaction after this one is committed.</paramref>
+        /// </summary>
+        public static void CommitTransaction(bool StartNewTransaction = true)
+        {
+            // Commits any previous action to database since this may call on items from those methods.
+            if (ConnectionContext.CurrentScopeConnection.IsTransaction())
+            {
+                ConnectionContext.CurrentScopeConnection.CommitTransaction();
+                if (StartNewTransaction)
+                {
+                    ConnectionContext.CurrentScopeConnection.BeginTransaction();
+                }
+            }
+
         }
 
         /// <summary>

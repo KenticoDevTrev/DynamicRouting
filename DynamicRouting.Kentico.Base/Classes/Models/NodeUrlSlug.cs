@@ -6,7 +6,7 @@ namespace DynamicRouting
     /// Represents a Node Url Slug, including references back to existing slug guid and settings
     /// </summary>
     [Serializable]
-    sealed class NodeUrlSlug
+    public class NodeUrlSlug
     {
         public string CultureCode { get; set; }
         public string UrlSlug { get; set; }

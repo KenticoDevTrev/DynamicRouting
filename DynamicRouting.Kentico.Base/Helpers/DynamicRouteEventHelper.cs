@@ -68,7 +68,7 @@
         public static void UrlSlugModified(int UrlSlugID)
         {
             // Convert UrlSlugID to NodeID
-            int NodeID = UrlSlugInfoProvider.GetUrlSlugInfo(UrlSlugID).NodeID;
+            int NodeID = UrlSlugInfoProvider.GetUrlSlugInfo(UrlSlugID).UrlSlugNodeID;
             DynamicRouteHelper.RebuildRoutesByNode(NodeID);
         }
 

@@ -458,5 +458,11 @@
   <ItemGroup>
     <Analyzer Include="..\packages\AWSSDK.S3.3.1.9.0\analyzers\dotnet\cs\AWSSDK.S3.CodeAnalysis.dll" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DynamicRouting.Kentico.Base\DynamicRouting.Kentico.Base.csproj">
+      <Project>{66553b70-ef4a-40ba-b077-f5b88826eb82}</Project>
+      <Name>DynamicRouting.Kentico.Base</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

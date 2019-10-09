@@ -17,7 +17,7 @@ namespace DynamicRouting
     /// <summary>
     /// A NodeItem is a representation of a Node's Url Slugs and any children.  Used to build Url Slugs and save.
     /// </summary>
-    sealed class NodeItem
+    public class NodeItem
     {
         public int NodeID;
         public List<NodeUrlSlug> UrlSlugs { get; set; }
@@ -46,6 +46,14 @@ namespace DynamicRouting
 
         public bool ChildrenBuilt { get; set; } = false;
 
+        /// <summary>
+        /// For Serialization and Deserialization only
+        /// </summary>
+        public NodeItem()
+        {
+            UrlSlugs = new List<NodeUrlSlug>();
+            Children = new List<NodeItem>();
+        }
 
         /// <summary>
         /// This constructor should be called when a Node is updated, passing the NodeID and it's parent.  This is a starting point 
@@ -57,7 +65,11 @@ namespace DynamicRouting
             if (Settings.BuildSiblings)
             {
                 // Start with Parent and build children, and children of the PageNodeID
-                NodeID = DocumentHelper.GetDocuments().WhereEquals("NodeID", NodeID).FirstOrDefault().NodeParentID;
+                NodeID = DocumentHelper.GetDocuments().WhereEquals("NodeID", PageNodeID).FirstOrDefault().NodeParentID;
+                if(NodeID <= 0)
+                {
+                    NodeID = PageNodeID;
+                }
             }
             else
             {
@@ -89,6 +101,7 @@ namespace DynamicRouting
             NodeID = Node.NodeID;
             Parent = parent;
             UrlSlugs = new List<NodeUrlSlug>();
+            Children = new List<NodeItem>();
             IsContainer = Node.IsCoupled;
             ClassName = Node.ClassName;
             this.Settings = Settings;
@@ -109,7 +122,7 @@ namespace DynamicRouting
         /// <param name="AlsoBuildChildrenOfNodeID">The child that matches this NodeID will also have it's children built.</param>
         public void BuildChildren()
         {
-            foreach (TreeNode Child in DocumentHelper.GetDocuments().WhereEquals("NodeParentNodeID", NodeID).Columns("NodeID, ClassIsCoupledClass, CLassName"))
+            foreach (TreeNode Child in DocumentHelper.GetDocuments().WhereEquals("NodeParentID", NodeID).Columns("NodeID, CLassName, NodeClassID"))
             {
                 Children.Add(new NodeItem(this, Child, Settings, AlsoBuildNodeID == Child.NodeID));
             }
@@ -121,8 +134,16 @@ namespace DynamicRouting
         /// </summary>
         public void BuildUrlSlugs()
         {
+            string Pattern = DynamicRouteHelper.GetClass(ClassName).ClassURLPattern;
+
+            // if no pattern, then default to node alias path, this way any child with a ParentUrl will still have a value.
+            if(string.IsNullOrWhiteSpace(Pattern))
+            {
+                Pattern = "{% NodeAliasPath %}";
+            }
+
             var SlugQuery = UrlSlugInfoProvider.GetUrlSlugs()
-                .WhereEquals("NodeID", NodeID);
+                .WhereEquals("UrlSlugNodeID", NodeID);
 
             // If not checking for updates (rebuild), then the only ones we want to keep are the Custom Url Slugs.
             if (!Settings.CheckingForUpdates)
@@ -135,16 +156,16 @@ namespace DynamicRouting
             {
                 UrlSlugs.Add(new NodeUrlSlug()
                 {
-                    IsCustom = ExistingSlug.IsCustom,
-                    IsDefault = ExistingSlug.CultureCode.Equals(Settings.DefaultCultureCode, StringComparison.InvariantCultureIgnoreCase),
-                    CultureCode = ExistingSlug.CultureCode,
+                    IsCustom = ExistingSlug.UrlSlugIsCustom,
+                    IsDefault = ExistingSlug.UrlSlugCultureCode.Equals(Settings.DefaultCultureCode, StringComparison.InvariantCultureIgnoreCase),
+                    CultureCode = ExistingSlug.UrlSlugCultureCode,
                     UrlSlug = ExistingSlug.UrlSlug,
                     ExistingNodeSlugGuid = ExistingSlug.UrlSlugGuid
                 });
             }
 
             // Go through any cultures that do not have custom slugs already, these are the cultures that need to be rebuilt
-            foreach (string CultureCode in Settings.CultureCodes.Where(culture => UrlSlugs.Exists(slug => slug.IsCustom && slug.CultureCode.Equals(culture, StringComparison.InvariantCultureIgnoreCase))))
+            foreach (string CultureCode in Settings.CultureCodes.Where(culture => !UrlSlugs.Exists(slug => slug.IsCustom && slug.CultureCode.Equals(culture, StringComparison.InvariantCultureIgnoreCase))))
             {
                 var CultureResolver = Settings.BaseResolver.CreateChild();
                 CultureResolver.SetAnonymousSourceData(new object[] { DynamicRouteHelper.GetCulture(CultureCode) });
@@ -171,7 +192,7 @@ namespace DynamicRouting
                         CultureCode = CultureCode,
                         IsCustom = false,
                         IsDefault = IsDefaultCulture,
-                        UrlSlug = DocResolver.ResolveMacros(DynamicRouteHelper.GetClass(ClassName).ClassURLPattern),
+                        UrlSlug = DynamicRouteHelper.GetCleanUrl(DocResolver.ResolveMacros(Pattern), Settings.SiteName),
                     };
 
                     // If checking for updates, need to flag that an update was found
@@ -191,12 +212,14 @@ namespace DynamicRouting
                         else
                         {
                             // No Slug exists for this culture, add.
+                            NodeSlug.IsNewOrUpdated = true;
                             UrlSlugs.Add(NodeSlug);
                         }
                     }
                     else
                     {
                         // Not checking for updates to just adding node slug.
+                        NodeSlug.IsNewOrUpdated = true;
                         UrlSlugs.Add(NodeSlug);
                     }
                 }
@@ -238,7 +261,7 @@ namespace DynamicRouting
                         // Check for existing Url Slug that matches the new Url
                         var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
                             .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
-                            .WhereNotEquals("NodeID", NodeID)
+                            .WhereNotEquals("UrlSlugNodeID", NodeID)
                             .FirstOrDefault();
                         if (MatchingUrlSlug != null)
                         {
@@ -274,7 +297,7 @@ namespace DynamicRouting
                         {
                             // Now Update the Url Slug if it's not custom
                             var ExistingSlug = UrlSlugInfoProvider.GetUrlSlugInfo(UrlSlug.ExistingNodeSlugGuid);
-                            if (!ExistingSlug.IsCustom)
+                            if (!ExistingSlug.UrlSlugIsCustom)
                             {
                                 ExistingSlug.UrlSlug = UrlSlug.UrlSlug;
                                 UrlSlugInfoProvider.SetUrlSlugInfo(ExistingSlug);
@@ -285,14 +308,14 @@ namespace DynamicRouting
                             // Check for existing Url Slug that matches the new Url
                             var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
                                 .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
-                                .WhereNotEquals("NodeID", NodeID)
+                                .WhereNotEquals("UrlSlugNodeID", NodeID)
                                 .FirstOrDefault();
                             if (MatchingUrlSlug != null)
                             {
                                 if (Settings.LogConflicts)
                                 {
                                     var CurDoc = DocumentHelper.GetDocument(NodeID, UrlSlug.CultureCode, new TreeProvider());
-                                    var ExistingSlugDoc = DocumentHelper.GetDocument(MatchingUrlSlug.NodeID, MatchingUrlSlug.CultureCode, new TreeProvider());
+                                    var ExistingSlugDoc = DocumentHelper.GetDocument(MatchingUrlSlug.UrlSlugNodeID, MatchingUrlSlug.UrlSlugCultureCode, new TreeProvider());
 
                                     // Log Conflict
                                     EventLogProvider.LogEvent("W", "DynamicRouting", "UrlSlugConflict", eventDescription: string.Format("Cannot create a new Url Slug {0} for Document {1} [{2}] because it exists already for {3} [{4}]",
@@ -309,10 +332,11 @@ namespace DynamicRouting
                                 var newSlug = new UrlSlugInfo()
                                 {
                                     UrlSlug = UrlSlug.UrlSlug,
-                                    NodeID = NodeID,
-                                    CultureCode = UrlSlug.CultureCode,
-                                    IsCustom = false
+                                    UrlSlugNodeID = NodeID,
+                                    UrlSlugCultureCode = UrlSlug.CultureCode,
+                                    UrlSlugIsCustom = false
                                 };
+                                UrlSlugInfoProvider.SetUrlSlugInfo(newSlug);
                             }
                         }
                     }

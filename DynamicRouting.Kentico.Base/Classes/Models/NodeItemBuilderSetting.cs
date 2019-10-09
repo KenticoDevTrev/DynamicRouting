@@ -10,7 +10,7 @@ using System.Xml.Serialization;
 namespace DynamicRouting
 {
     [Serializable]
-    sealed class NodeItemBuilderSettings
+    public class NodeItemBuilderSettings
     {
         /// <summary>
         /// Mainly stored for serialization so the Macro Resolver can be restored after deserialization
