@@ -8,7 +8,7 @@ namespace DynamicRouting.Kentico.MVC
     /// for the specified <see cref="PageClassNames" /> matching <see cref="CMS.DocumentEngine.TreeNode.ClassName"/> 
     /// for custom Page Types.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Assembly)]
+    [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
     public class DynamicRoutingAttribute : Attribute
     {
         private string actionMethodName = "Index";
