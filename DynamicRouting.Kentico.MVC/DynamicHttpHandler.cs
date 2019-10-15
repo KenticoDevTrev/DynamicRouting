@@ -32,14 +32,14 @@ namespace DynamicRouting.Kentico.MVC
             // Setup routing with new values
             RequestContext.RouteData.Values["Controller"] = routePair.ControllerName;
             RequestContext.RouteData.Values["Action"] = routePair.ActionName;
-
+            
+            // May need to rethink how we do this, may be a better way.
             IController controller = null;
             IControllerFactory factory = ControllerBuilder.Current.GetControllerFactory();
             controller = factory.CreateController(RequestContext, routePair.ControllerName);
             controller.Execute(RequestContext);
 
             factory.ReleaseController(controller);
-
         }
 
         private ControllerActionPair ResolveRouteValues(ITreeNode node)
@@ -59,7 +59,7 @@ namespace DynamicRouting.Kentico.MVC
 
             if (PageHasTemplate(node))
             {
-                return new ControllerActionPair("DynamicPageTemplate", "Index");
+                return new ControllerActionPair("DynamicRouteTemplate", "Index");
             }
 
             if (!DynamicRoutingAnalyzer.TryFindMatch(node.ClassName, out var match))
