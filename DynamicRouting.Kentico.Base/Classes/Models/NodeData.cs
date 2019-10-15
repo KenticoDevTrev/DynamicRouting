@@ -134,7 +134,7 @@ namespace DynamicRouting
         /// </summary>
         public void BuildUrlSlugs()
         {
-            string Pattern = DynamicRouteHelper.GetClass(ClassName).ClassURLPattern;
+            string Pattern = DynamicRouteInternalHelper.GetClass(ClassName).ClassURLPattern;
 
             // if no pattern, then default to node alias path, this way any child with a ParentUrl will still have a value.
             if(string.IsNullOrWhiteSpace(Pattern))
@@ -168,7 +168,7 @@ namespace DynamicRouting
             foreach (string CultureCode in Settings.CultureCodes.Where(culture => !UrlSlugs.Exists(slug => slug.IsCustom && slug.CultureCode.Equals(culture, StringComparison.InvariantCultureIgnoreCase))))
             {
                 var CultureResolver = Settings.BaseResolver.CreateChild();
-                CultureResolver.SetAnonymousSourceData(new object[] { DynamicRouteHelper.GetCulture(CultureCode) });
+                CultureResolver.SetAnonymousSourceData(new object[] { DynamicRouteInternalHelper.GetCulture(CultureCode) });
 
                 bool IsDefaultCulture = CultureCode.Equals(Settings.DefaultCultureCode, StringComparison.InvariantCultureIgnoreCase);
 
@@ -192,7 +192,7 @@ namespace DynamicRouting
                         CultureCode = CultureCode,
                         IsCustom = false,
                         IsDefault = IsDefaultCulture,
-                        UrlSlug = DynamicRouteHelper.GetCleanUrl(DocResolver.ResolveMacros(Pattern), Settings.SiteName),
+                        UrlSlug = DynamicRouteInternalHelper.GetCleanUrl(DocResolver.ResolveMacros(Pattern), Settings.SiteName),
                     };
 
                     // If checking for updates, need to flag that an update was found

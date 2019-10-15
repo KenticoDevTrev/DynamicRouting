@@ -15,7 +15,7 @@ namespace DynamicRouting.Kentico
             switch (task.TaskName.ToLower())
             {
                 case "checkurlslugqueue":
-                    DynamicRouteHelper.CheckUrlSlugGenerationQueue();
+                    DynamicRouteInternalHelper.CheckUrlSlugGenerationQueue();
                     break;
             }
             return Result;

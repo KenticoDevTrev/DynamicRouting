@@ -8,19 +8,19 @@
         public static void CultureVariationSettingsChanged(string SiteName)
         {
             // Build all, update all
-            DynamicRouteHelper.RebuildRoutesBySite(SiteName);
+            DynamicRouteInternalHelper.RebuildRoutesBySite(SiteName);
         }
 
         public static void SiteLanguageChanged(string SiteName)
         {
             // Build all, update all
-            DynamicRouteHelper.RebuildRoutesBySite(SiteName);
+            DynamicRouteInternalHelper.RebuildRoutesBySite(SiteName);
         }
 
         public static void SiteDefaultLanguageChanged(string SiteName)
         {
             // Build all, update all
-            DynamicRouteHelper.RebuildRoutesBySite(SiteName);
+            DynamicRouteInternalHelper.RebuildRoutesBySite(SiteName);
         }
 
         /// <summary>
@@ -29,7 +29,7 @@
         /// <param name="ClassName"></param>
         public static void ClassUrlPatternChanged(string ClassName)
         {
-            DynamicRouteHelper.RebuildRoutesByClass(ClassName);
+            DynamicRouteInternalHelper.RebuildRoutesByClass(ClassName);
         }
 
         /// <summary>
@@ -38,7 +38,7 @@
         /// <param name="ParentNodeID"></param>
         public static void DocumentDeleted(int ParentNodeID)
         {
-            DynamicRouteHelper.RebuildRoutesByNode(ParentNodeID);
+            DynamicRouteInternalHelper.RebuildRoutesByNode(ParentNodeID);
         }
 
         /// <summary>
@@ -48,8 +48,8 @@
         /// <param name="NewParentNodeID"></param>
         public static void DocumentMoved(int OldParentNodeID, int NewParentNodeID)
         {
-            DynamicRouteHelper.RebuildRoutesByNode(OldParentNodeID);
-            DynamicRouteHelper.RebuildRoutesByNode(NewParentNodeID);
+            DynamicRouteInternalHelper.RebuildRoutesByNode(OldParentNodeID);
+            DynamicRouteInternalHelper.RebuildRoutesByNode(NewParentNodeID);
         }
 
         /// <summary>
@@ -58,7 +58,7 @@
         /// <param name="NodeID"></param>
         public static void DocumentInsertUpdated(int NodeID)
         {
-            DynamicRouteHelper.RebuildRoutesByNode(NodeID);
+            DynamicRouteInternalHelper.RebuildRoutesByNode(NodeID);
         }
 
         /// <summary>
@@ -69,7 +69,7 @@
         {
             // Convert UrlSlugID to NodeID
             int NodeID = UrlSlugInfoProvider.GetUrlSlugInfo(UrlSlugID).UrlSlugNodeID;
-            DynamicRouteHelper.RebuildRoutesByNode(NodeID);
+            DynamicRouteInternalHelper.RebuildRoutesByNode(NodeID);
         }
 
     }

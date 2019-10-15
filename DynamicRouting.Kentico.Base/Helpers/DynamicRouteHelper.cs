@@ -26,56 +26,8 @@ namespace DynamicRouting
     /// <summary>
     /// Helper methods that execute the checks
     /// </summary>
-    public static class DynamicRouteHelper
+    public static class DynamicRouteInternalHelper
     {
-        #region "Page By Url"
-
-        /// <summary>
-        /// Gets the CMS Page using Dynamic Routing, returning the culture variation that either matches the given culture or the Slug's culture, or the default site culture if not found.
-        /// </summary>
-        /// <param name="Url">The Url (part after the domain), if empty will use the Current Request</param>
-        /// <param name="Culture">The Culture, not needed if the Url contains the culture that the UrlSlug has as part of it's generation.</param>
-        /// <param name="SiteName">The Site Name, defaults to current site.</param>
-        /// <returns>The Page that matches the Url Slug, for the given or matching culture (or default culture if one isn't found).</returns>
-        public static ITreeNode GetPage(string Url = "", string Culture = "", string SiteName = "")
-        {
-            // Load defaults
-            SiteName = (!string.IsNullOrWhiteSpace(SiteName) ? SiteName : SiteContext.CurrentSiteName);
-            string DefaultCulture = SiteContext.CurrentSite.DefaultVisitorCulture;
-            if (string.IsNullOrWhiteSpace(Url))
-            {
-                Url = EnvironmentHelper.GetUrl(HttpContext.Current.Request.Url.AbsolutePath, HttpContext.Current.Request.ApplicationPath);
-            }
-
-            // Clean the Url
-            Url = GetCleanUrl(Url, SiteName);
-
-            // Get Page based on Url
-            return CacheHelper.Cache<TreeNode>(cs =>
-            {
-                if(cs.Cached)
-                {
-                    cs.CacheDependency = CacheHelper.GetCacheDependency("dynamicrouting.urlslug|all");
-                }
-
-                // Using custom query as Kentico's API was not properly handling a Join and where.
-                DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
-                {
-                    {"@Url", Url },
-                    {"@Culture", Culture },
-                    {"@DefaultCulture", DefaultCulture },
-                    { "@SiteName", SiteName }
-                }, topN: 1).Tables[0];
-                if(NodeTable.Rows.Count > 0) {
-                    return TreeNode.New(NodeTable.Rows[0]);
-                }
-                 else
-                {
-                    return null;
-                }
-            }, new CacheSettings(1440, "DynamicRoutine.GetPage", Url, Culture, DefaultCulture, SiteName));
-        }
-
         /// <summary>
         /// Cleans up the Url given the site settings
         /// </summary>
@@ -111,8 +63,6 @@ namespace DynamicRouting
             string[] temp = value.Split(CharsToReplace, StringSplitOptions.RemoveEmptyEntries);
             return String.Join(ReplaceValue, temp);
         }
-
-        #endregion
 
         #region "Relational Checks required"
 
@@ -378,7 +328,8 @@ namespace DynamicRouting
                 }
                 // Save changes
                 RootNodeItem.SaveChanges();
-            } else
+            }
+            else
             {
                 // Do rest asyncly.
                 QueueUpUrlSlugGeneration(RootNodeItem);
@@ -441,7 +392,7 @@ namespace DynamicRouting
 
             // Get Settings based on the Page itself
             NodeItemBuilderSettings Settings = GetNodeItemBuilderSettings(Page.NodeAliasPath, GetSite(Page.NodeSiteID).SiteName, true, false);
-            
+
             // Check all descendents
             Settings.BuildDescendents = true;
             Settings.CheckingForUpdates = false;
@@ -505,7 +456,7 @@ namespace DynamicRouting
                 SlugGenerationQueueNodeItem = SerializeObject<NodeItem>(NodeItem)
             };
             SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(NewQueue);
-            
+
             // Run Queue checker
             CheckUrlSlugGenerationQueue();
         }
@@ -543,7 +494,7 @@ namespace DynamicRouting
                 ,{"@SkipErroredGenerations", SkipErroredGenerations()}
             });
 
-            if(NextGenerationResult.Tables.Count > 0 && NextGenerationResult.Tables[0].Rows.Count > 0)
+            if (NextGenerationResult.Tables.Count > 0 && NextGenerationResult.Tables[0].Rows.Count > 0)
             {
                 // Queue up task asyncly
                 CMSThread UrlGenerationThread = new CMSThread(new ThreadStart(RunSlugGenerationQueueItem), new ThreadSettings()
@@ -569,7 +520,7 @@ namespace DynamicRouting
                 .WhereEquals("SlugGenerationQueueRunning", 1)
                 .WhereEquals("SlugGenerationQueueApplicationID", SystemHelper.ApplicationIdentifier)
                 .FirstOrDefault();
-            if(ItemToRun == null)
+            if (ItemToRun == null)
             {
                 return;
             }
@@ -600,7 +551,7 @@ namespace DynamicRouting
                 // Now that we are 'finished' call the Check again to processes next item.
                 CheckUrlSlugGenerationQueue();
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 ItemToRun.SlugGenerationQueueErrors = EventLogProvider.GetExceptionLogMessage(ex);
                 ItemToRun.SlugGenerationQueueRunning = false;
@@ -741,7 +692,8 @@ namespace DynamicRouting
             return CacheHelper.Cache(cs =>
             {
                 var Site = SiteInfoProvider.GetSiteInfo(SiteID);
-                if(cs.Cached) {
+                if (cs.Cached)
+                {
                 }
                 cs.CacheDependency = CacheHelper.GetCacheDependency("cms.site|byid|" + SiteID);
                 return Site;

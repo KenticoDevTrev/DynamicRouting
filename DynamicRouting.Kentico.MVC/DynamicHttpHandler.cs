@@ -32,7 +32,7 @@ namespace DynamicRouting.Kentico.MVC
             // Setup routing with new values
             RequestContext.RouteData.Values["Controller"] = routePair.ControllerName;
             RequestContext.RouteData.Values["Action"] = routePair.ActionName;
-            
+
             // May need to rethink how we do this, may be a better way.
             IController controller = null;
             IControllerFactory factory = ControllerBuilder.Current.GetControllerFactory();
@@ -42,7 +42,7 @@ namespace DynamicRouting.Kentico.MVC
             factory.ReleaseController(controller);
         }
 
-        private ControllerActionPair ResolveRouteValues(ITreeNode node)
+        private DynamicRouteConfiguration ResolveRouteValues(ITreeNode node)
         {
             string defaultController = RequestContext.RouteData.Values.ContainsKey("controller")
                 ? RequestContext.RouteData.Values["controller"].ToString()
@@ -54,17 +54,17 @@ namespace DynamicRouting.Kentico.MVC
 
             if (node is null)
             {
-                return new ControllerActionPair(defaultController, defaultAction);
+                return new DynamicRouteConfiguration(defaultController, defaultAction, null, null, DynamicRouteType.Controller);
             }
 
             if (PageHasTemplate(node))
             {
-                return new ControllerActionPair("DynamicRouteTemplate", "Index");
+                return new DynamicRouteConfiguration("DynamicRouteTemplate", "Index", null, null, DynamicRouteType.Controller);
             }
 
             if (!DynamicRoutingAnalyzer.TryFindMatch(node.ClassName, out var match))
             {
-                return new ControllerActionPair(defaultController, defaultAction);
+                return new DynamicRouteConfiguration(defaultController, defaultAction, null, null, DynamicRouteType.Controller);
             }
 
             return match;

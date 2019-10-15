@@ -111,7 +111,7 @@ namespace DynamicRouting.Kentico
         private void Document_Sort_After(object sender, DocumentSortEventArgs e)
         {
             // Check parent which will see if Children need update
-            DynamicRouteHelper.RebuildRoutesByNode(e.ParentNodeId);
+            DynamicRouteInternalHelper.RebuildRoutesByNode(e.ParentNodeId);
         }
 
         private void Document_Move_Before(object sender, DocumentEventArgs e)
@@ -198,7 +198,7 @@ namespace DynamicRouting.Kentico
                 case "cmsdefaultculturecode":
                     if (Key.SiteID > 0)
                     {
-                        string SiteName = DynamicRouteHelper.GetSite(Key.SiteID).SiteName;
+                        string SiteName = DynamicRouteInternalHelper.GetSite(Key.SiteID).SiteName;
                         DynamicRouteEventHelper.SiteDefaultLanguageChanged(SiteName);
                     }
                     else
@@ -212,7 +212,7 @@ namespace DynamicRouting.Kentico
                 case "generateculturevariationurlslugs":
                     if (Key.SiteID > 0)
                     {
-                        string SiteName = DynamicRouteHelper.GetSite(Key.SiteID).SiteName;
+                        string SiteName = DynamicRouteInternalHelper.GetSite(Key.SiteID).SiteName;
                         DynamicRouteEventHelper.CultureVariationSettingsChanged(SiteName);
                     }
                     else
@@ -229,7 +229,7 @@ namespace DynamicRouting.Kentico
         private void CultureSite_InsertDelete_After(object sender, ObjectEventArgs e)
         {
             CultureSiteInfo CultureSite = (CultureSiteInfo)e.Object;
-            string SiteName = DynamicRouteHelper.GetSite(CultureSite.SiteID).SiteName;
+            string SiteName = DynamicRouteInternalHelper.GetSite(CultureSite.SiteID).SiteName;
             DynamicRouteEventHelper.SiteLanguageChanged(SiteName);
         }
     }

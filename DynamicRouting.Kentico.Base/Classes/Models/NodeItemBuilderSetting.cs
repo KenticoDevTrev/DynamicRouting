@@ -63,17 +63,17 @@ namespace DynamicRouting
 
 
         /// <summary>
-        /// If true, then the parent of the main node should be checked along with it's children (the main node's siblings).  Usually set from DynamicRouteHelper.CheckSiblings
+        /// If true, then the parent of the main node should be checked along with it's children (the main node's siblings).  Usually set from DynamicRouteInternalHelper.CheckSiblings
         /// </summary>
         public bool BuildSiblings { get; set; }
 
         /// <summary>
-        /// If true, then the Children should be checked on the applicable nodes.  Usually set from DynamicRouteHelper.CheckChildren
+        /// If true, then the Children should be checked on the applicable nodes.  Usually set from DynamicRouteInternalHelper.CheckChildren
         /// </summary>
         public bool BuildChildren { get; set; }
 
         /// <summary>
-        /// If true, then all descendents need to be checked for updates. Usually set from DynamicRouteHelper.CheckDescendents
+        /// If true, then all descendents need to be checked for updates. Usually set from DynamicRouteInternalHelper.CheckDescendents
         /// </summary>
         public bool BuildDescendents { get; set; }
 

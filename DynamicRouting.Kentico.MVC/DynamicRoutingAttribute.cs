@@ -11,9 +11,15 @@ namespace DynamicRouting.Kentico.MVC
     [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
     public class DynamicRoutingAttribute : Attribute
     {
-        private string actionMethodName = "Index";
-
-        public DynamicRoutingAttribute(Type controllerType, string[] pageClassNames)
+        /// <summary>
+        /// Marks the given <see cref="System.Web.Mvc.Controller"/> as the handler for HTTP requests
+        /// for the specified <see cref="PageClassNames" /> matching <see cref="CMS.DocumentEngine.TreeNode.ClassName"/> 
+        /// for custom Page Types.
+        /// </summary>
+        /// <param name="controllerType">The Controller Type</param>
+        /// <param name="pageClassNames">The Page Class Names</param>
+        /// <param name="actionMethodName">The Optional Action Method in the Controller to handle this request.</param>
+        public DynamicRoutingAttribute(Type controllerType, string[] pageClassNames, string actionMethodName = null)
         {
             if (controllerType is null)
             {
@@ -26,10 +32,79 @@ namespace DynamicRouting.Kentico.MVC
             }
 
             ControllerName = controllerType.ControllerNamePrefix();
-            ActionMethodName = actionMethodName;
+
+            if (!string.IsNullOrWhiteSpace(actionMethodName)) {
+                ActionMethodName = actionMethodName;
+            } else
+            {
+                ActionMethodName = "Index";
+            }
+
             PageClassNames = pageClassNames
                 .Select(n => n.ToLowerInvariant())
                 .ToArray();
+            RouteType = DynamicRouteType.Controller;
+        }
+
+        /// <summary>
+        /// Pages with the given Class Name will be routed to this View with the given Type (inheriting from ITreeNode)
+        /// </summary>
+        /// <param name="viewName">The View name that should be rendered.</param>
+        /// <param name="modelType">The Model that inherits <see cref="CMS.Base.ITreeNode"/></param>
+        /// <param name="pageClassName">The Class Name that this Dynamic Route applies to.</param>
+        public DynamicRoutingAttribute(string viewName, Type modelType, string pageClassName)
+        {
+            if (string.IsNullOrWhiteSpace(viewName))
+            {
+                throw new ArgumentNullException(nameof(viewName));
+            }
+
+            if (modelType is null)
+            {
+                throw new ArgumentNullException(nameof(modelType));
+            }
+
+            if (string.IsNullOrWhiteSpace(pageClassName))
+            {
+                throw new ArgumentNullException(nameof(pageClassName));
+            }
+
+            ViewName = viewName;
+            ModelType = modelType;
+            PageClassNames = new string[] { pageClassName };
+            RouteType = DynamicRouteType.ViewWithModel;
+        }
+
+        /// <summary>
+        /// Pages with the given Class Names will be routed to this View.
+        /// </summary>
+        /// <param name="viewName">The View name that should be rendered.</param>
+        /// <param name="pageClassNames">The Class Names that this Dynamic Route applies to.</param>
+        /// <param name="includePageModel">Will pass the <see cref="CMS.Base.ITreeNode"/> page as the model for this view. If false, will not pass a model.</param>
+        public DynamicRoutingAttribute(string viewName, string[] pageClassNames, bool IncludePageModel = true)
+        {
+            if (string.IsNullOrWhiteSpace(viewName))
+            {
+                throw new ArgumentNullException(nameof(viewName));
+            }
+
+            if (pageClassNames is null)
+            {
+                throw new ArgumentNullException(nameof(pageClassNames));
+            }
+
+            ViewName = viewName;
+            PageClassNames = pageClassNames
+                .Select(n => n.ToLowerInvariant())
+                .ToArray();
+
+            if(IncludePageModel)
+            {
+                RouteType = DynamicRouteType.ViewWithModel;
+            } else
+            {
+                RouteType = DynamicRouteType.View;
+            }
         }
 
         /// <summary>
@@ -46,22 +121,12 @@ namespace DynamicRouting.Kentico.MVC
         /// <summary>
         /// The name of the action method that will handle the request
         /// </summary>
-        public string ActionMethodName
-        {
-            get
-            {
-                return actionMethodName;
-            }
+        public string ActionMethodName { get; }
 
-            set
-            {
-                if (value is null)
-                {
-                    throw new ArgumentNullException(nameof(ActionMethodName));
-                }
+        public Type ModelType { get; }
 
-                actionMethodName = value;
-            }
-        }
+        public string ViewName { get; }
+
+        public DynamicRouteType RouteType { get; }
     }
 }
