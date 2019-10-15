@@ -287,3 +287,4 @@ export*.zip
 #Include Packages folder since Rx-Core is no longer retreivable through nuget
 /Lib
 /Lib/*.*
+/DynamicRouting.Kentico.MVC/App_Data/*
