@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Web;
+using System.Web.Mvc;
 using CMS.Base;
 using CMS.DataEngine;
 using CMS.Helpers;
@@ -31,6 +32,14 @@ namespace DynamicRouting.Kentico.MVC
             // Setup routing with new values
             RequestContext.RouteData.Values["Controller"] = routePair.ControllerName;
             RequestContext.RouteData.Values["Action"] = routePair.ActionName;
+
+            IController controller = null;
+            IControllerFactory factory = ControllerBuilder.Current.GetControllerFactory();
+            controller = factory.CreateController(RequestContext, routePair.ControllerName);
+            controller.Execute(RequestContext);
+
+            factory.ReleaseController(controller);
+
         }
 
         private ControllerActionPair ResolveRouteValues(ITreeNode node)
