@@ -9,20 +9,20 @@ using DynamicRouting.Kentico;
 using System.Linq;
 using System.Threading;
 
-[assembly: RegisterModule(typeof(DynamicRouteInitializationModule))]
 namespace DynamicRouting.Kentico
 {
-    public class DynamicRouteInitializationModule : Module
+    /// <summary>
+    /// This is the base OnInit, since the this is run on both the Mother and MVC, but we cannot initialize both modules (or it throw a duplicate error), this is called from a MVC and Mother specific initialization module
+    /// </summary>
+    public class DynamicRouteInitializationModule_Base
     {
-        public DynamicRouteInitializationModule() : base("DynamicRouteInitializationModule")
+        public DynamicRouteInitializationModule_Base()
         {
 
         }
 
-        protected override void OnInit()
+        public void Init()
         {
-            base.OnInit();
-
             // Detect Site Culture changes
             CultureSiteInfo.TYPEINFO.Events.Insert.After += CultureSite_InsertDelete_After;
             CultureSiteInfo.TYPEINFO.Events.Delete.After += CultureSite_InsertDelete_After;

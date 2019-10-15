@@ -16,22 +16,27 @@ namespace DynamicRouting.Kentico.MVC
                 .CurrentDomain
                 .GetAssemblies()
                 .Where(a => !a.FullName.StartsWith("CMS.") && !a.FullName.StartsWith("Kentico."))
-                .Select(a => a.GetCustomAttribute<DynamicRoutingAttribute>());
+                .SelectMany(a => a.GetCustomAttributes<DynamicRoutingAttribute>());
 
             foreach (var attribute in attributes)
             {
+                if (attribute == null)
+                {
+                    continue;
+                }
                 foreach (string pageClassName in attribute.PageClassNames)
                 {
-                    if (classNameLookup.TryGetValue(pageClassName, out var pair))
+                    string pageClassNameLookup = pageClassName.ToLowerInvariant();
+                    if (classNameLookup.TryGetValue(pageClassNameLookup, out var pair))
                     {
                         throw new Exception(
                             "Duplicate Annotation: " +
-                            $"{pair.ControllerName}Controller.{pair.ActionName} already registered for NodeClassName {pageClassName}. " +
+                            $"{pair.ControllerName}Controller.{pair.ActionName} already registered for NodeClassName {pageClassNameLookup}. " +
                             $"Cannot be registered for {attribute.ControllerName}.{attribute.ActionMethodName}"
                         );
                     }
 
-                    classNameLookup.Add(pageClassName, new ControllerActionPair(
+                    classNameLookup.Add(pageClassNameLookup, new ControllerActionPair(
                         controllerName: attribute.ControllerName,
                         actionName: attribute.ActionMethodName));
                 }
@@ -40,7 +45,7 @@ namespace DynamicRouting.Kentico.MVC
 
         public static bool TryFindMatch(string nodeClassName, out ControllerActionPair match)
         {
-            return classNameLookup.TryGetValue(nodeClassName, out match);
+            return classNameLookup.TryGetValue(nodeClassName.ToLowerInvariant(), out match);
         }
     }
 
