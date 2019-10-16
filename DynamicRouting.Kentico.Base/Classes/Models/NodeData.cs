@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
@@ -134,7 +135,8 @@ namespace DynamicRouting
         /// </summary>
         public void BuildUrlSlugs()
         {
-            string Pattern = DynamicRouteInternalHelper.GetClass(ClassName).ClassURLPattern;
+            // Temp replace Method version with Normal version
+            string Pattern = Regex.Replace(DynamicRouteInternalHelper.GetClass(ClassName).ClassURLPattern, "ParentUrl()", "ParentUrl", RegexOptions.IgnoreCase);
 
             // if no pattern, then default to node alias path, this way any child with a ParentUrl will still have a value.
             if(string.IsNullOrWhiteSpace(Pattern))

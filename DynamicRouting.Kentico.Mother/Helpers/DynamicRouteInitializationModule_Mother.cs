@@ -1,10 +1,10 @@
 ﻿using CMS;
 using CMS.DataEngine;
-using DynamicRouting.Kentico.MVC;
+using DynamicRouting.Kentico.Mother;
 
 [assembly: RegisterModule(typeof(DynamicRouteInitializationModule_Mother))]
 
-namespace DynamicRouting.Kentico.MVC
+namespace DynamicRouting.Kentico.Mother
 {
     public class DynamicRouteInitializationModule_Mother : Module
     {

@@ -362,10 +362,9 @@ namespace DynamicRouting
                     .OnSite(new SiteInfoIdentifier(SiteName))
                     .CombineWithDefaultCulture()
                     .Distinct()
-                    .Columns("NodeID")
+                    .Columns("NodeID, NodeLevel, NodeOrder")
                     .OrderBy("NodeLevel, NodeOrder")
-                    .Select(x => x.NodeID)
-                    .ToList();
+                    .Result.Tables[0].Rows.Cast<DataRow>().Select(x => (int)x["NodeID"]).ToList();
 
                 // Check all parent nodes for changes
                 foreach (int NodeID in NodeIDs)
