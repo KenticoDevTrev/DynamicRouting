@@ -46,24 +46,20 @@ namespace DynamicRouting
                 Url = EnvironmentHelper.GetUrl(HttpContext.Current.Request.Url.AbsolutePath, HttpContext.Current.Request.ApplicationPath, SiteName);
             }
 
-            // Handle Preview, during Route Config the Preview isn't available so throws an exception
+            // Handle Preview, during Route Config the Preview isn't available and isn't really needed, so ignore the thrown exception
             bool PreviewEnabled = false;
             try
             {
                 PreviewEnabled = HttpContext.Current.Kentico().Preview().Enabled;
-            }catch(InvalidOperationException ex) { }
-            
+            }
+            catch (InvalidOperationException ex) { }
+
             // Convert Columns to 
             string ColumnsVal = Columns != null ? string.Join(",", Columns.Distinct()) : "*";
 
             // Get Page based on Url
             return CacheHelper.Cache<TreeNode>(cs =>
             {
-                if (cs.Cached)
-                {
-                    cs.CacheDependency = CacheHelper.GetCacheDependency("dynamicrouting.urlslug|all");
-                }
-
                 // Using custom query as Kentico's API was not properly handling a Join and where.
                 DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
                 {
@@ -79,9 +75,9 @@ namespace DynamicRouting
 
                     DocumentQuery Query = DocumentHelper.GetDocuments(ClassName)
                             .WhereEquals("DocumentID", DocumentID);
-                    
+
                     // Handle Columns
-                    if(!string.IsNullOrWhiteSpace(ColumnsVal))
+                    if (!string.IsNullOrWhiteSpace(ColumnsVal))
                     {
                         Query.Columns(ColumnsVal);
                     }
@@ -95,6 +91,24 @@ namespace DynamicRouting
                     else
                     {
                         Query.PublishedVersion(true);
+                    }
+
+                    TreeNode Page = Query.FirstOrDefault();
+
+                    // Cache dependencies on the Url Slugs and also the DocumentID if available.
+                    if (cs.Cached)
+                    {
+                        if (Page != null)
+                        {
+                            cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
+                            "dynamicrouting.urlslug|all",
+                            "documentid|" + Page.DocumentID,  });
+                        }
+                        else
+                        {
+                            cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "dynamicrouting.urlslug|all" });
+                        }
+
                     }
 
                     // Return Page Data

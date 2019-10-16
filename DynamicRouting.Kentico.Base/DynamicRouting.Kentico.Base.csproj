@@ -458,7 +458,7 @@
     <Compile Include="Classes\Models\NodeUrlSlug.cs" />
     <Compile Include="Classes\Other\UrlSlugCollisionException.cs" />
     <Compile Include="Helpers\DynamicRouteEventHelper.cs" />
-    <Compile Include="Helpers\DynamicRouteHelper.cs" />
+    <Compile Include="Helpers\DynamicRouteInternalHelper.cs" />
     <Compile Include="Helpers\DynamicRouteInitializationModule.cs" />
     <Compile Include="Helpers\EnvironmentHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
