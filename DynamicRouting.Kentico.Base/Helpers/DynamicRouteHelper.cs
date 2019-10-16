@@ -34,16 +34,23 @@ namespace DynamicRouting
         /// <param name="Url">The Relative Url</param>
         /// <param name="SiteName">The Site name to get settings from</param>
         /// <returns>The cleaned Url.</returns>
-        public static string GetCleanUrl(string Url, string SiteName)
+        public static string GetCleanUrl(string Url, string SiteName = "")
         {
             // Remove trailing or double //'s and any url parameters / anchors
             Url = "/" + Url.Trim("/ ".ToCharArray()).Split('?')[0].Split('#')[0];
+            Url = HttpUtility.UrlDecode(Url);
 
             // Replace forbidden characters
             // Remove / from the forbidden characters because that is part of the Url, of course.
-            string ForbiddenCharacters = URLHelper.ForbiddenURLCharacters(SiteName).Replace("/", "");
-            string Replacement = URLHelper.ForbiddenCharactersReplacement(SiteName).ToString();
-            Url = ReplaceAnyCharInString(Url, ForbiddenCharacters.ToCharArray(), Replacement);
+            if(string.IsNullOrWhiteSpace(SiteName) && !string.IsNullOrWhiteSpace(SiteContext.CurrentSiteName))
+            {
+                SiteName = SiteContext.CurrentSiteName;
+            }
+            if(!string.IsNullOrWhiteSpace(SiteName)) { 
+                string ForbiddenCharacters = URLHelper.ForbiddenURLCharacters(SiteName).Replace("/", "");
+                string Replacement = URLHelper.ForbiddenCharactersReplacement(SiteName).ToString();
+                Url = ReplaceAnyCharInString(Url, ForbiddenCharacters.ToCharArray(), Replacement);
+            }
 
             // Escape special url characters
             Url = URLHelper.EscapeSpecialCharacters(Url);

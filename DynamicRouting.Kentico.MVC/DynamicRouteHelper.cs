@@ -43,11 +43,8 @@ namespace DynamicRouting
             string DefaultCulture = SiteContext.CurrentSite.DefaultVisitorCulture;
             if (string.IsNullOrWhiteSpace(Url))
             {
-                Url = EnvironmentHelper.GetUrl(HttpContext.Current.Request.Url.AbsolutePath, HttpContext.Current.Request.ApplicationPath);
+                Url = EnvironmentHelper.GetUrl(HttpContext.Current.Request.Url.AbsolutePath, HttpContext.Current.Request.ApplicationPath, SiteName);
             }
-
-            // Clean the Url
-            Url = DynamicRouteInternalHelper.GetCleanUrl(Url, SiteName);
 
             // Handle Preview, during Route Config the Preview isn't available so throws an exception
             bool PreviewEnabled = false;
