@@ -78,5 +78,15 @@ namespace DynamicRouting
             UrlSlugInfo infoObj = GetUrlSlugInfo(id);
             DeleteUrlSlugInfo(infoObj);
         }
+
+        /// <summary>
+        /// Deletes <see cref="UrlSlugInfo"/> with specified GUID.
+        /// </summary>
+        /// <param name="guid"><see cref="UrlSlugInfo"/> GUID.</param>
+        public static void DeleteUrlSlugInfo(Guid guid)
+        {
+            UrlSlugInfo infoObj = GetUrlSlugInfo(guid);
+            DeleteUrlSlugInfo(infoObj);
+        }
     }
 }

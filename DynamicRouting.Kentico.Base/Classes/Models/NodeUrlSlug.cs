@@ -13,6 +13,7 @@ namespace DynamicRouting
         public bool IsDefault { get; set; }
         public bool IsCustom { get; set; }
         public bool IsNewOrUpdated { get; set; } = false;
+        public bool Delete { get; set; } = false;
         public string PreviousUrlSlug { get; set; }
         public Guid ExistingNodeSlugGuid { get; set; }
         public NodeUrlSlug()

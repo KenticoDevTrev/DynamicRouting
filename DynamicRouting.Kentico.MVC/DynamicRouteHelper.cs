@@ -51,6 +51,10 @@ namespace DynamicRouting
             try
             {
                 PreviewEnabled = HttpContext.Current.Kentico().Preview().Enabled;
+                if(PreviewEnabled && string.IsNullOrWhiteSpace(Culture))
+                {
+                    Culture = HttpContext.Current.Kentico().Preview().CultureName;
+                }
             }
             catch (InvalidOperationException ex) { }
 
@@ -74,7 +78,8 @@ namespace DynamicRouting
                     string ClassName = ValidationHelper.GetString(NodeTable.Rows[0]["ClassName"], "");
 
                     DocumentQuery Query = DocumentHelper.GetDocuments(ClassName)
-                            .WhereEquals("DocumentID", DocumentID);
+                            .WhereEquals("DocumentID", DocumentID)
+                            .CombineWithAnyCulture();
 
                     // Handle Columns
                     if (!string.IsNullOrWhiteSpace(ColumnsVal))
@@ -86,7 +91,7 @@ namespace DynamicRouting
                     if (PreviewEnabled)
                     {
                         Query.LatestVersion(true)
-                            .Published(false);
+                          .Published(false);
                     }
                     else
                     {

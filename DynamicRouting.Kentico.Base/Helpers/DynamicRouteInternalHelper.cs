@@ -100,18 +100,17 @@ namespace DynamicRouting
             {
                 SiteName = GetSiteName(SiteName);
 
-                var Document = DocumentHelper.GetDocument(new NodeSelectionParameters()
-                {
-                    SelectSingleNode = true,
-                    AliasPath = NodeAliasPath,
-                    SiteName = SiteName
-                }, new TreeProvider());
+                var Document = DocumentHelper.GetDocuments()
+                    .WhereEquals("NodeAliasPath", NodeAliasPath)
+                    .OnSite(SiteName)
+                    .CombineWithAnyCulture().FirstOrDefault();
 
                 // return if any siblings have a class NodeOrder exist
                 return DocumentHelper.GetDocuments()
                     .WhereEquals("NodeParentID", Document.NodeParentID)
                     .WhereNotEquals("NodeID", Document.NodeID)
                     .WhereIn("NodeClassID", ClassIDs)
+                    .CombineWithAnyCulture()
                     .Columns("NodeID")
                     .Count > 0;
             }
@@ -154,6 +153,7 @@ namespace DynamicRouting
                 return DocumentHelper.GetDocuments()
                     .Path(NodeAliasPath, PathTypeEnum.Children)
                     .OnSite(new SiteInfoIdentifier(SiteName))
+                    .CombineWithAnyCulture()
                     .WhereIn("NodeClassID", ClassIDs)
                     .Columns("NodeID")
                     .Count > 0;
@@ -187,17 +187,17 @@ namespace DynamicRouting
             {
                 SiteName = GetSiteName(SiteName);
 
-                var Document = DocumentHelper.GetDocument(new NodeSelectionParameters()
-                {
-                    SelectSingleNode = true,
-                    AliasPath = NodeAliasPath,
-                    SiteName = SiteName
-                }, new TreeProvider());
+                var Document = DocumentHelper.GetDocuments()
+                    .Path(NodeAliasPath, PathTypeEnum.Single)
+                    .OnSite(SiteName)
+                    .CombineWithAnyCulture()
+                    .FirstOrDefault();
 
                 // return if any Children have a class NodeOrder exist
                 return DocumentHelper.GetDocuments()
                     .WhereEquals("NodeParentID", Document.NodeID)
                     .WhereIn("NodeClassID", ClassIDs)
+                    .CombineWithAnyCulture()
                     .Columns("NodeID")
                     .Count > 0;
             }
@@ -317,11 +317,11 @@ namespace DynamicRouting
             NodeItemBuilderSettings BuilderSettings = GetNodeItemBuilderSettings(SiteName, true, true, true, true, true);
 
             // Get root NodeID
-            TreeNode RootNode = DocumentHelper.GetDocument(new NodeSelectionParameters()
-            {
-                AliasPath = "/",
-                SiteName = SiteName
-            }, new TreeProvider());
+            TreeNode RootNode = DocumentHelper.GetDocuments()
+                .Path("/", PathTypeEnum.Single)
+                .OnSite(SiteName)
+                .CombineWithAnyCulture()
+                .FirstOrDefault();
 
             // Rebuild NodeItem tree structure, this will only affect the initial node syncly.
             NodeItem RootNodeItem = new NodeItem(RootNode.NodeID, BuilderSettings);
@@ -393,6 +393,7 @@ namespace DynamicRouting
             // Get Site from Node
             TreeNode Page = DocumentHelper.GetDocuments()
                 .WhereEquals("NodeID", NodeID)
+                .CombineWithAnyCulture()
                 .Columns("NodeSiteID")
                 .FirstOrDefault();
 
@@ -419,7 +420,8 @@ namespace DynamicRouting
                 // Get Site from Node
                 TreeNode Page = DocumentHelper.GetDocuments()
                     .WhereEquals("NodeID", NodeID)
-                    .Columns("NodeSiteID")
+                    .Columns("NodeSiteID, NodeAliasPath")
+                    .CombineWithAnyCulture()
                     .FirstOrDefault();
 
                 // Get Settings based on the Page itself

@@ -66,7 +66,7 @@ namespace DynamicRouting
             if (Settings.BuildSiblings)
             {
                 // Start with Parent and build children, and children of the PageNodeID
-                NodeID = DocumentHelper.GetDocuments().WhereEquals("NodeID", PageNodeID).FirstOrDefault().NodeParentID;
+                NodeID = DocumentHelper.GetDocuments().WhereEquals("NodeID", PageNodeID).CombineWithAnyCulture().FirstOrDefault().NodeParentID;
                 if(NodeID <= 0)
                 {
                     NodeID = PageNodeID;
@@ -78,7 +78,7 @@ namespace DynamicRouting
                 NodeID = PageNodeID;
             }
 
-            TreeNode Node = DocumentHelper.GetDocuments().WhereEquals("NodeID", NodeID).FirstOrDefault();
+            TreeNode Node = DocumentHelper.GetDocuments().WhereEquals("NodeID", NodeID).CombineWithAnyCulture().FirstOrDefault();
             Parent = null;
             UrlSlugs = new List<NodeUrlSlug>();
             IsContainer = Node.IsCoupled;
@@ -123,7 +123,7 @@ namespace DynamicRouting
         /// <param name="AlsoBuildChildrenOfNodeID">The child that matches this NodeID will also have it's children built.</param>
         public void BuildChildren()
         {
-            foreach (TreeNode Child in DocumentHelper.GetDocuments().WhereEquals("NodeParentID", NodeID).Columns("NodeID, CLassName, NodeClassID"))
+            foreach (TreeNode Child in DocumentHelper.GetDocuments().WhereEquals("NodeParentID", NodeID).CombineWithAnyCulture().Columns("NodeID, CLassName, NodeClassID"))
             {
                 Children.Add(new NodeItem(this, Child, Settings, AlsoBuildNodeID == Child.NodeID));
             }
@@ -180,6 +180,19 @@ namespace DynamicRouting
                     .Culture(CultureCode)
                     .CombineWithDefaultCulture(IsDefaultCulture || Settings.GenerateIfCultureDoesntExist)
                     .FirstOrDefault();
+
+                // If the Document is either Null because there is no Default Culture, then get any document
+                // and set the culture code if the current Culture checking is either the default culture (required)
+                // or is another culture but should be generated due to the GenerateIfCultureDoesntExist setting
+                if(Document == null && (IsDefaultCulture || Settings.GenerateIfCultureDoesntExist))
+                {
+                        Document = DocumentHelper.GetDocuments(ClassName)
+                            .WhereEquals("NodeID", NodeID)
+                            .CombineWithAnyCulture()
+                            .FirstOrDefault();
+                        Document.DocumentCulture = CultureCode;
+                }
+
                 if (Document != null)
                 {
                     // Add Document values and ParentUrl
@@ -223,6 +236,14 @@ namespace DynamicRouting
                         // Not checking for updates to just adding node slug.
                         NodeSlug.IsNewOrUpdated = true;
                         UrlSlugs.Add(NodeSlug);
+                    }
+                } else if(!Settings.GenerateIfCultureDoesntExist && !IsDefaultCulture)
+                {
+                    // If document no longer exists but a Url slug exists, set this slug to be deleted.
+                    var SlugToDelete = UrlSlugs.Where(x => x.ExistingNodeSlugGuid != null && x.CultureCode.Equals(CultureCode, StringComparison.InvariantCultureIgnoreCase)).FirstOrDefault();
+                    if(SlugToDelete != null)
+                    {
+                        SlugToDelete.Delete = true;
                     }
                 }
             }
@@ -293,6 +314,12 @@ namespace DynamicRouting
                 // Check itself for changes and save, then children
                 foreach (NodeUrlSlug UrlSlug in UrlSlugs)
                 {
+                    // Handle Deletes
+                    if(UrlSlug.Delete)
+                    {
+                        UrlSlugInfoProvider.DeleteUrlSlugInfo(UrlSlug.ExistingNodeSlugGuid);
+                        continue;
+                    }
                     if (UrlSlug.IsNewOrUpdated)
                     {
                         if (ValidationHelper.GetGuid(UrlSlug.ExistingNodeSlugGuid, Guid.Empty) != Guid.Empty)

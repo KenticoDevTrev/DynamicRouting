@@ -6,6 +6,7 @@ using CMS.EventLog;
 using CMS.Helpers;
 using CMS.SiteProvider;
 using DynamicRouting.Kentico;
+using System;
 using System.Linq;
 using System.Threading;
 
@@ -23,6 +24,14 @@ namespace DynamicRouting.Kentico
 
         public void Init()
         {
+            // Ensure that the Foreign Keys and Views exist
+            try { 
+                ConnectionHelper.ExecuteNonQuery("DynamicRouting.UrlSlug.InitializeSQLEntities");
+            } catch(Exception ex)
+            {
+                EventLogProvider.LogException("DynamicRouting", "ErrorRunningSQLEntities", ex, additionalMessage: "Could not run DynamicRouting.UrlSlug.InitializeSQLEntities Query, this sets up Views and Foreign Keys vital to operation.  Please ensure these queries exist.");
+            }
+
             // Detect Site Culture changes
             CultureSiteInfo.TYPEINFO.Events.Insert.After += CultureSite_InsertDelete_After;
             CultureSiteInfo.TYPEINFO.Events.Delete.After += CultureSite_InsertDelete_After;
@@ -36,15 +45,15 @@ namespace DynamicRouting.Kentico
             DataClassInfo.TYPEINFO.Events.Update.After += DataClass_Update_After;
 
             // Document Changes
-            DocumentEvents.ChangeOrder.After += Document_ChangeOrder_After;
+            DocumentEvents.ChangeOrder.After += Document_ChangeOrder_After; // Done
             DocumentEvents.Copy.After += Document_Copy_After;
-            DocumentEvents.Delete.After += Document_Delete_After;
-            DocumentEvents.Insert.After += Document_Insert_After;
+            DocumentEvents.Delete.After += Document_Delete_After; // Done
+            DocumentEvents.Insert.After += Document_Insert_After;  // Done
             DocumentEvents.InsertLink.After += Document_InsertLink_After;
-            DocumentEvents.InsertNewCulture.After += Document_InsertNewCulture_After;
+            DocumentEvents.InsertNewCulture.After += Document_InsertNewCulture_After; // Done
             DocumentEvents.Move.Before += Document_Move_Before;
             DocumentEvents.Move.After += Document_Move_After;
-            DocumentEvents.Sort.After += Document_Sort_After;
+            DocumentEvents.Sort.After += Document_Sort_After; // Done
             DocumentEvents.Update.After += Document_Update_After;
 
             // Handle 301 Redirect creation on Url Slug updates
@@ -54,6 +63,7 @@ namespace DynamicRouting.Kentico
         private void UrlSlug_Update_Before(object sender, ObjectEventArgs e)
         {
             UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
+            string OriginalUrlSlug = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug);
             // save previous Url to 301 redirects
             // Get DocumentID
             var Document = DocumentHelper.GetDocuments()
@@ -63,18 +73,26 @@ namespace DynamicRouting.Kentico
                 .Culture(UrlSlug.UrlSlugCultureCode)
                 .FirstOrDefault();
             var AlternativeUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
-                .WhereEquals("AlternativeUrlUrl", UrlSlug.UrlSlug)
+                .WhereEquals("AlternativeUrlUrl", OriginalUrlSlug)
                 .FirstOrDefault();
             if (AlternativeUrl != null)
             {
                 if (AlternativeUrl.AlternativeUrlDocumentID != Document.DocumentID)
                 {
-                    // If Same NodeID, then replace the DocumentID with the current one as now the document has the culture code.
+                    // If Same NodeID, then make sure the DocumentID is of the one that is the DefaultCulture, if no DefaultCulture
+                    // Exists, then just ignore
                     var AlternativeUrlDocument = DocumentHelper.GetDocument(AlternativeUrl.AlternativeUrlDocumentID, new TreeProvider());
                     if (AlternativeUrlDocument.NodeID == UrlSlug.UrlSlugNodeID)
                     {
-                        AlternativeUrl.AlternativeUrlDocumentID = Document.DocumentID;
-                        AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                        TreeNode DefaultLanguage = DocumentHelper.GetDocuments()
+                            .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                            .CombineWithDefaultCulture()
+                            .FirstOrDefault();
+                        if (DefaultLanguage != null && AlternativeUrl.AlternativeUrlDocumentID != DefaultLanguage.DocumentID)
+                        {
+                            AlternativeUrl.AlternativeUrlDocumentID = DefaultLanguage.DocumentID;
+                            AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                        }
                     }
                     else
                     {
@@ -97,7 +115,7 @@ namespace DynamicRouting.Kentico
                     AlternativeUrlDocumentID = Document.DocumentID,
                     AlternativeUrlSiteID = Document.NodeSiteID,
                 };
-                AlternativeUrl.SetValue("AlternativeUrlUrl", UrlSlug.UrlSlug);
+                AlternativeUrl.SetValue("AlternativeUrlUrl", OriginalUrlSlug);
                 AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
             }
         }
@@ -150,7 +168,11 @@ namespace DynamicRouting.Kentico
 
         private void Document_Insert_After(object sender, DocumentEventArgs e)
         {
-            DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            // Prevents the CHangeOrderAfter which may trigger before this from creating a double queue item.
+            RecursionControl PreventInsertAfter = new RecursionControl("PreventInsertAfter" + e.Node.NodeID);
+            if(PreventInsertAfter.Continue) { 
+                DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            }
         }
 
         private void Document_Delete_After(object sender, DocumentEventArgs e)
@@ -165,6 +187,10 @@ namespace DynamicRouting.Kentico
 
         private void Document_ChangeOrder_After(object sender, DocumentChangeOrderEventArgs e)
         {
+            // Sometimes ChangeOrder is triggered before the insert (if it inserts before other records),
+            // So will use recursion helper to prevent this from running on the insert as well.
+            RecursionControl PreventInsertAfter = new RecursionControl("PreventInsertAfter" + e.Node.NodeID);
+            var Trigger = PreventInsertAfter.Continue;
             DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
         }
 
