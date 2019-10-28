@@ -55,7 +55,8 @@ namespace DynamicRouting.Kentico
                     {"@Url", Url },
                     {"@Culture", Culture },
                     {"@DefaultCulture", DefaultCulture },
-                    {"@SiteName", SiteName }
+                    {"@SiteName", SiteName },
+                    {"@PreviewEnabled", PreviewEnabled }
                 }, topN: 1, columns: "DocumentID, ClassName").Tables[0];
                 if (NodeTable.Rows.Count > 0)
                 {
@@ -91,11 +92,13 @@ namespace DynamicRouting.Kentico
                         {
                             cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
                             "dynamicrouting.urlslug|all",
+                            "dynamicrouting.versionhistoryurlslug|all",
+                            "dynamicrouting.versionhistoryurlslug|bydocumentid|"+Page.DocumentID,
                             "documentid|" + Page.DocumentID,  });
                         }
                         else
                         {
-                            cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "dynamicrouting.urlslug|all" });
+                            cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "dynamicrouting.urlslug|all", "dynamicrouting.versionhistoryurlslug|all" });
                         }
 
                     }

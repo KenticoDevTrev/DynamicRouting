@@ -70,7 +70,8 @@ namespace DynamicRouting
                     {"@Url", Url },
                     {"@Culture", Culture },
                     {"@DefaultCulture", DefaultCulture },
-                    {"@SiteName", SiteName }
+                    {"@SiteName", SiteName },
+                    {"@PreviewEnabled", PreviewEnabled }
                 }, topN: 1, columns: "DocumentID, ClassName").Tables[0];
                 if (NodeTable.Rows.Count > 0)
                 {
@@ -105,8 +106,10 @@ namespace DynamicRouting
                     {
                         if (Page != null)
                         {
+                            // The "dynamicrouting.versionhistoryurlslug|bydocumentid|"+Page.DocumentID is custom and triggered through an event hook.
                             cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
                             "dynamicrouting.urlslug|all",
+                            "dynamicrouting.versionhistoryurlslug|bydocumentid|"+Page.DocumentID,
                             "documentid|" + Page.DocumentID,  });
                         }
                         else

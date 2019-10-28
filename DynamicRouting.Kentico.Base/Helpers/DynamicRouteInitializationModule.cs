@@ -4,10 +4,15 @@ using CMS.DataEngine;
 using CMS.DocumentEngine;
 using CMS.EventLog;
 using CMS.Helpers;
+using CMS.MacroEngine;
 using CMS.SiteProvider;
+using CMS.WorkflowEngine;
 using DynamicRouting.Kentico;
 using System;
+using System.Data;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace DynamicRouting.Kentico
@@ -25,9 +30,11 @@ namespace DynamicRouting.Kentico
         public void Init()
         {
             // Ensure that the Foreign Keys and Views exist
-            try { 
+            try
+            {
                 ConnectionHelper.ExecuteNonQuery("DynamicRouting.UrlSlug.InitializeSQLEntities");
-            } catch(Exception ex)
+            }
+            catch (Exception ex)
             {
                 EventLogProvider.LogException("DynamicRouting", "ErrorRunningSQLEntities", ex, additionalMessage: "Could not run DynamicRouting.UrlSlug.InitializeSQLEntities Query, this sets up Views and Foreign Keys vital to operation.  Please ensure these queries exist.");
             }
@@ -55,9 +62,98 @@ namespace DynamicRouting.Kentico
             DocumentEvents.Move.After += Document_Move_After;
             DocumentEvents.Sort.After += Document_Sort_After; // Done
             DocumentEvents.Update.After += Document_Update_After;
+            WorkflowEvents.Publish.After += Document_Publish_After;
 
             // Handle 301 Redirect creation on Url Slug updates
             UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before;
+
+            // Attach to Workflow History events to generate Workflow History Url Slugs
+            VersionHistoryInfo.TYPEINFO.Events.Insert.After += VersionHistory_InsertUpdate_After;
+            VersionHistoryInfo.TYPEINFO.Events.Update.After += VersionHistory_InsertUpdate_After;
+
+            DynamicRouting.VersionHistoryUrlSlugInfo.TYPEINFO.Events.Insert.After += VersionHistoryUrlSlug_InsertUpdate_After;
+        }
+
+        private void VersionHistoryUrlSlug_InsertUpdate_After(object sender, ObjectEventArgs e)
+        {
+            VersionHistoryUrlSlugInfo VersionHistoryUrlSlug = (VersionHistoryUrlSlugInfo)e.Object;
+            // Get Version History
+            int DocumentID = CacheHelper.Cache(cs =>
+            {
+                VersionHistoryInfo VersionHistory = VersionHistoryInfoProvider.GetVersionHistoryInfo(VersionHistoryUrlSlug.VersionHistoryUrlSlugVersionHistoryID);
+                if(VersionHistory != null)
+                {
+                    cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "cms.versionhistory|byid|" + VersionHistory.VersionHistoryID });
+                } else
+                {
+                    cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "cms.versionhistory|all" });
+                }
+                return (VersionHistory != null ? VersionHistory.DocumentID : 0);
+            }, new CacheSettings(1440, "DocumentIDByVersionHistoryID", VersionHistoryUrlSlug.VersionHistoryUrlSlugVersionHistoryID));
+            
+            // Touch key to clear version history for this DocumentID
+            CacheHelper.TouchKey("dynamicrouting.versionhistoryurlslug|bydocumentid|" + DocumentID);
+        }
+
+        private void Document_Publish_After(object sender, WorkflowEventArgs e)
+        {
+            // Update the document itself
+            DynamicRouteEventHelper.DocumentInsertUpdated(e.Document.NodeID);
+        }
+
+        private void VersionHistory_InsertUpdate_After(object sender, ObjectEventArgs e)
+        {
+            VersionHistoryInfo VersionHistory = (VersionHistoryInfo)e.Object;
+
+            if(string.IsNullOrWhiteSpace(VersionHistory.NodeXML))
+            {
+                // No Data on Node, probably a delete history
+                return;
+            }
+
+            // Get versioned document by converting the NodeXML into a DataSet and grabbing the first table's row
+            DataSet NodeXmlData = new DataSet();
+            NodeXmlData.ReadXml(new StringReader(VersionHistory.NodeXML));
+            if (DataHelper.DataSourceIsEmpty(NodeXmlData) || NodeXmlData.Tables.Count == 0 || NodeXmlData.Tables[0].Rows.Count == 0)
+            {
+                EventLogProvider.LogEvent("E", "DynamicRouting", "VersionHistoryUrlSlugError", eventDescription: $"Could not generate Version History Url Slug since the Verison History NodeXML was empty for Version History {VersionHistory.VersionHistoryID}");
+                return;
+            }
+            var Class = DynamicRouteInternalHelper.GetClass(VersionHistory.VersionClassID);
+            TreeNode Document = null;
+            if (Class == null)
+            {
+                EventLogProvider.LogEvent("E", "DynamicRouting", "VersionHistoryUrlSlugError", eventDescription: $"Could not generate Version History Url Slug since the VersionClassID was not found for Version History {VersionHistory.VersionHistoryID}");
+                return;
+            }
+            Document = TreeNode.New(Class.ClassName, NodeXmlData.Tables[0].Rows[0]);
+            
+            // Create Macro Resolver
+            MacroResolver DocResolver = MacroResolver.GetInstance();
+            SiteInfo Site = DynamicRouteInternalHelper.GetSite(Document.NodeSiteID);
+            DocResolver.SetAnonymousSourceData(new object[] { Site });
+            DocResolver.SetAnonymousSourceData(new object[] { DynamicRouteInternalHelper.GetCulture(Document.DocumentCulture) });
+            DocResolver.SetAnonymousSourceData(new object[] { Document });
+            // Replace "ParentUrl()" with "ParentUrl", then replace that with |ParentUrl| as we will use SQL to escape dynamically replace this with the production parent slug as this can change
+            string Pattern = Regex.Replace(Class.ClassURLPattern, "ParentUrl\\(\\)", "ParentUrl", RegexOptions.IgnoreCase);
+            DocResolver.SetHiddenNamedSourceData("ParentUrl", "ParentUrl");
+
+            string Url = DynamicRouteInternalHelper.GetCleanUrl(DocResolver.ResolveMacros(Pattern), Site.SiteName);
+            Url = Regex.Replace(Url, "/ParentUrl", "|ParentUrl|", RegexOptions.IgnoreCase);
+
+            // Get current and update, or create if empty
+            VersionHistoryUrlSlugInfo VersionHistoryUrlSlug = DynamicRouteInternalHelper.GetVersionHistoryUrlSlugByVersionHistoryID(VersionHistory.VersionHistoryID);
+            if(VersionHistoryUrlSlug == null)
+            {
+                VersionHistoryUrlSlug = new VersionHistoryUrlSlugInfo()
+                {
+                    VersionHistoryUrlSlugVersionHistoryID = VersionHistory.VersionHistoryID
+                };
+            }
+            if(VersionHistoryUrlSlug.VersionHistoryUrlSlug != Url) { 
+                VersionHistoryUrlSlug.VersionHistoryUrlSlug = Url;
+                VersionHistoryUrlSlugInfoProvider.SetVersionHistoryUrlSlugInfo(VersionHistoryUrlSlug);
+            }
         }
 
         private void UrlSlug_Update_Before(object sender, ObjectEventArgs e)
@@ -122,8 +218,10 @@ namespace DynamicRouting.Kentico
 
         private void Document_Update_After(object sender, DocumentEventArgs e)
         {
-            // Update the document itself
-            DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            // Update the document itself, only if there is no workflow or it is a published step
+            if(e.Node.WorkflowStep == null || e.Node.WorkflowStep.StepIsPublished) { 
+                DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            }
         }
 
         private void Document_Sort_After(object sender, DocumentSortEventArgs e)
@@ -146,9 +244,11 @@ namespace DynamicRouting.Kentico
             if (PreviousParentNodeID != null)
             {
                 // Check if the move was just ordering
-                if((int)PreviousParentNodeID != e.TargetParentNodeID) { 
+                if ((int)PreviousParentNodeID != e.TargetParentNodeID)
+                {
                     DynamicRouteEventHelper.DocumentMoved((int)PreviousParentNodeID, e.TargetParentNodeID);
-                } else
+                }
+                else
                 {
                     // Just update the document which will check for siblings with NodeOrder
                     DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
@@ -170,7 +270,8 @@ namespace DynamicRouting.Kentico
         {
             // Prevents the CHangeOrderAfter which may trigger before this from creating a double queue item.
             RecursionControl PreventInsertAfter = new RecursionControl("PreventInsertAfter" + e.Node.NodeID);
-            if(PreventInsertAfter.Continue) { 
+            if (PreventInsertAfter.Continue)
+            {
                 DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
             }
         }
@@ -198,7 +299,7 @@ namespace DynamicRouting.Kentico
         {
             // Check if the Url Pattern is changing
             DataClassInfo Class = (DataClassInfo)e.Object;
-            if(!Class.ClassURLPattern.Equals(ValidationHelper.GetString(e.Object.GetOriginalValue("ClassURLPattern"), "")))
+            if (!Class.ClassURLPattern.Equals(ValidationHelper.GetString(e.Object.GetOriginalValue("ClassURLPattern"), "")))
             {
                 // Add key that the "After" will check, if the Continue is "False" then this was hit, so we actually want to continue.
                 RecursionControl TriggerClassUpdateAfter = new RecursionControl("TriggerClassUpdateAfter_" + Class.ClassName);
@@ -211,7 +312,8 @@ namespace DynamicRouting.Kentico
             DataClassInfo Class = (DataClassInfo)e.Object;
             // If the "Continue" is false, it means that a DataClass_Update_Before found that the UrlPattern was changed
             // Otherwise the "Continue" will be true that this is the first time triggering it.
-            if (!new RecursionControl("TriggerClassUpdateAfter_" + Class.ClassName).Continue) {
+            if (!new RecursionControl("TriggerClassUpdateAfter_" + Class.ClassName).Continue)
+            {
                 DynamicRouteEventHelper.ClassUrlPatternChanged(Class.ClassName);
             }
         }

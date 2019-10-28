@@ -67,7 +67,7 @@ namespace DynamicRouting
             {
                 // Start with Parent and build children, and children of the PageNodeID
                 NodeID = DocumentHelper.GetDocuments().WhereEquals("NodeID", PageNodeID).CombineWithAnyCulture().FirstOrDefault().NodeParentID;
-                if(NodeID <= 0)
+                if (NodeID <= 0)
                 {
                     NodeID = PageNodeID;
                 }
@@ -136,10 +136,10 @@ namespace DynamicRouting
         public void BuildUrlSlugs()
         {
             // Temp replace Method version with Normal version
-            string Pattern = Regex.Replace(DynamicRouteInternalHelper.GetClass(ClassName).ClassURLPattern, "ParentUrl()", "ParentUrl", RegexOptions.IgnoreCase);
+            string Pattern = Regex.Replace(DynamicRouteInternalHelper.GetClass(ClassName).ClassURLPattern, "ParentUrl\\(\\)", "ParentUrl", RegexOptions.IgnoreCase);
 
             // if no pattern, then default to node alias path, this way any child with a ParentUrl will still have a value.
-            if(string.IsNullOrWhiteSpace(Pattern))
+            if (string.IsNullOrWhiteSpace(Pattern))
             {
                 Pattern = "{% NodeAliasPath %}";
             }
@@ -184,13 +184,13 @@ namespace DynamicRouting
                 // If the Document is either Null because there is no Default Culture, then get any document
                 // and set the culture code if the current Culture checking is either the default culture (required)
                 // or is another culture but should be generated due to the GenerateIfCultureDoesntExist setting
-                if(Document == null && (IsDefaultCulture || Settings.GenerateIfCultureDoesntExist))
+                if (Document == null && (IsDefaultCulture || Settings.GenerateIfCultureDoesntExist))
                 {
-                        Document = DocumentHelper.GetDocuments(ClassName)
-                            .WhereEquals("NodeID", NodeID)
-                            .CombineWithAnyCulture()
-                            .FirstOrDefault();
-                        Document.DocumentCulture = CultureCode;
+                    Document = DocumentHelper.GetDocuments(ClassName)
+                        .WhereEquals("NodeID", NodeID)
+                        .CombineWithAnyCulture()
+                        .FirstOrDefault();
+                    Document.DocumentCulture = CultureCode;
                 }
 
                 if (Document != null)
@@ -198,10 +198,25 @@ namespace DynamicRouting
                     // Add Document values and ParentUrl
                     var DocResolver = CultureResolver.CreateChild();
                     DocResolver.SetAnonymousSourceData(new object[] { Document });
-                    if (Parent != null)
+                    if (Parent == null)
+                    {
+                        // Look up parent Url Slug
+                        UrlSlugInfo ParentSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                            .WhereEquals("UrlSlugNodeID", Document.NodeParentID)
+                            .OrderBy($"case when UrlSlugCultureCode = '{CultureCode}' then 0 else 1 end, case when UrlSlugCultureCode = '{Settings.DefaultCultureCode}' then 0 else 1 end, UrlSlugCultureCode")
+                            .FirstOrDefault();
+                        if(ParentSlug != null) { 
+                            DocResolver.SetNamedSourceData("ParentUrl", ParentSlug.UrlSlug);
+                        } else
+                        {
+                            DocResolver.SetNamedSourceData("ParentUrl", "");
+                        }
+                    }
+                    else
                     {
                         DocResolver.SetNamedSourceData("ParentUrl", Parent.GetUrlSlug(CultureCode));
                     }
+
                     var NodeSlug = new NodeUrlSlug()
                     {
                         CultureCode = CultureCode,
@@ -237,11 +252,12 @@ namespace DynamicRouting
                         NodeSlug.IsNewOrUpdated = true;
                         UrlSlugs.Add(NodeSlug);
                     }
-                } else if(!Settings.GenerateIfCultureDoesntExist && !IsDefaultCulture)
+                }
+                else if (!Settings.GenerateIfCultureDoesntExist && !IsDefaultCulture)
                 {
                     // If document no longer exists but a Url slug exists, set this slug to be deleted.
                     var SlugToDelete = UrlSlugs.Where(x => x.ExistingNodeSlugGuid != null && x.CultureCode.Equals(CultureCode, StringComparison.InvariantCultureIgnoreCase)).FirstOrDefault();
-                    if(SlugToDelete != null)
+                    if (SlugToDelete != null)
                     {
                         SlugToDelete.Delete = true;
                     }
@@ -315,7 +331,7 @@ namespace DynamicRouting
                 foreach (NodeUrlSlug UrlSlug in UrlSlugs)
                 {
                     // Handle Deletes
-                    if(UrlSlug.Delete)
+                    if (UrlSlug.Delete)
                     {
                         UrlSlugInfoProvider.DeleteUrlSlugInfo(UrlSlug.ExistingNodeSlugGuid);
                         continue;

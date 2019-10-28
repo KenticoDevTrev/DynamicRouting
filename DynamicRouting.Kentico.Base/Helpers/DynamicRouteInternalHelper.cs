@@ -724,6 +724,41 @@ namespace DynamicRouting
         }
 
         /// <summary>
+        /// Cached helper to gets the DataClassInfo object
+        /// </summary>
+        /// <param name="ClassName">Class Name</param>
+        /// <returns>The DataClassINfo of that class</returns>
+        public static DataClassInfo GetClass(int ClassID)
+        {
+            return CacheHelper.Cache(cs =>
+            {
+                var Class = DataClassInfoProvider.GetDataClassInfo(ClassID);
+                cs.CacheDependency = CacheHelper.GetCacheDependency("cms.class|byid|" + ClassID);
+                return Class;
+            }, new CacheSettings(1440, "GetClassByID", ClassID));
+        }
+        
+        /// <summary>
+        /// Cached helper to get the Version History Url Slug object
+        /// </summary>
+        /// <param name="VersionHistoryID">The Version History ID of the Document</param>
+        /// <returns>The Version History Url Slug Info</returns>
+        public static VersionHistoryUrlSlugInfo GetVersionHistoryUrlSlugByVersionHistoryID(int VersionHistoryID)
+        {
+            return CacheHelper.Cache(cs =>
+            {
+                var VersionHistoryUrlSlug = VersionHistoryUrlSlugInfoProvider.GetVersionHistoryUrlSlugs().WhereEquals("VersionHistoryUrlSlugVersionHistoryID", VersionHistoryID).FirstOrDefault();
+                if(VersionHistoryUrlSlug != null) { 
+                    cs.CacheDependency = CacheHelper.GetCacheDependency("DynamicRouting.VersionHistoryUrlSlug|byid|" + VersionHistoryUrlSlug.VersionHistoryUrlSlugID);
+                } else
+                {
+                    cs.CacheDependency = CacheHelper.GetCacheDependency("DynamicRouting.VersionHistoryUrlSlug|all");
+                }
+                return VersionHistoryUrlSlug;
+            }, new CacheSettings(1440, "VersionHistoryUrlSlugByID", VersionHistoryID));
+        }
+
+        /// <summary>
         /// Cached helper to get the CultureInfo object for the given Culture code
         /// </summary>
         /// <param name="CultureCode">the Culture code (ex en-US)</param>
