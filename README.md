@@ -5,7 +5,7 @@ Dynamic Routing in Kentico using a Routing Table and Assembly Attribute.  This m
 
 ## Mother Application
 1. Install a blank Kentico Site locally
-1. Install the DynamicRouting.Kentico NuGet Package on the Kentico Mother and run it.
+1. Install the [DynamicRouting.Kentico](https://www.nuget.org/packages/DynamicRouting.Kentico/12.0.0) NuGet Package on the Kentico Mother and run it.
 1. Optionally, import the `DynamicRoutingStarterSite.zip' site in Kentico, this contains Dynamic Routing Test page types and pages.
 
 ## MVC Application
