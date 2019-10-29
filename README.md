@@ -16,14 +16,14 @@ Dynamic Routing in Kentico using a Routing Table and Assembly Attribute.  This m
 1. Fork the Dynamic Routing master branch into your local repository (or just download if not going to modify yourself and just testing)
 
 ### Mother Application
-1. Open the WebApp.sln that contains your "Mother" solution, include the projects DynamicRouting.Kentico.Base and DynamicRouting.Kentico from the Git Repo
-1. Configure so your WebApp CMSApp project references the DynamicRouting.Kentico project, and the DynamicRouting.Kentico project references DynamicRouting.Kentico.Base
+1. Open the WebApp.sln that contains your `Mother` solution, include the projects [DynamicRouting.Kentico.Base](https://github.com/KenticoDevTrev/DynamicRouting/tree/master/DynamicRouting.Kentico.Base) and [DynamicRouting.Kentico](https://github.com/KenticoDevTrev/DynamicRouting/tree/master/DynamicRouting.Kentico.Mother) from the Git Repo
+1. Configure so your WebApp `CMSApp` project references the `DynamicRouting.Kentico` project, and the `DynamicRouting.Kentico` project references DynamicRouting.Kentico.Base
 1. Add a class to your Old_App_Code containing the [MacroMethodForDynamicRoutingMacroPageType.txt](https://github.com/KenticoDevTrev/DynamicRouting/blob/master/DynamicRouting.Kentico.Mother/MacroMethodForDynamicRoutingMacroPageType.txt) code, this is used on the Dynamic Routing (Macro) Page type.
 1. Note, you may have to remove the libraries that are in the bin from the nuget package.
 
 ### MVC Web App
-1. Open the ToolsMVC.sln that contains your "MVC Site" solution, include the projects DynamicRouting.Kentico.Base and DynamicRouting.Kentico.MVC from the Git Repo
-1. Configure so your WebApp CMSApp project references the DynamicRouting.Kentico.MVC project, and the DynamicRouting.Kentico project references DynamicRouting.Kentico.Base
+1. Open the ToolsMVC.sln that contains your `MVC Site` solution, include the projects [DynamicRouting.Kentico.Base](https://github.com/KenticoDevTrev/DynamicRouting/tree/master/DynamicRouting.Kentico.Base) and [DynamicRouting.Kentico.MVC](https://github.com/KenticoDevTrev/DynamicRouting/tree/master/DynamicRouting.Kentico.MVC) from the Git Repo
+1. Configure so your WebApp `CMSApp` project references the `DynamicRouting.Kentico.MVC` project, and the `DynamicRouting.Kentico`) project references DynamicRouting.Kentico.Base
 
 If you are installing this into your own site, the only thing required to hook this up is to modify your RouteConfig.cs and include the following Routes:
 
@@ -74,7 +74,7 @@ public static void RegisterRoutes(RouteCollection routes)
             defaults: new { controller = "HttpErrors", action = "Index" }
             );
     }
-    ```
+```
 
 ## Build
 1. Rebuild your solutions and ensure all the nuget packages are restored.
