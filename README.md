@@ -85,8 +85,8 @@ public static void RegisterRoutes(RouteCollection routes)
 The Dynamic Routing runs off of 3 pieces.
 
 1. Url Slugs: The Url that the page will be rendered at, generated from the Page Type's URL Pattern.  You can use `{% ParentUrl() %}` in the URL Pattern to substitute the page's parent URL Slug (ex: URL Pattern: `{% ParentUrl() %}/{% Name %}` )
-2. a GetPage() Helper that takes the current (or given) URL and finds the page that has a matching slug (and thus also have the Class Name)
-3. `DynamicRoutingAttribute` Assembly tags that then link Page Types to Controller, Controller+Action, View, or View+Model
+2. `DynamicRouteHelper.GetPage()` that takes the current (or given) URL and finds the page that has a matching slug (and thus also have that page's `ClassName`)
+3. `DynamicRoutingAttribute` Assembly tags that then link Page's ClassName to Controller, Controller+Action, View, or View+Model
 
 Keep in mind that if a page has a Page Template, it will render the Page Template instead.
 
