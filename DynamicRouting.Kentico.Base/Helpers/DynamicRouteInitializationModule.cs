@@ -254,7 +254,7 @@ namespace DynamicRouting.Kentico
             if (PreviousParentNodeID != null && (int)PreviousParentNodeID != e.TargetParentNodeID)
             {
                 // If differnet node IDs, it moved to another parent, so also run Document Moved check on both new and old parent
-                //DynamicRouteEventHelper.DocumentMoved((int)PreviousParentNodeID, e.TargetParentNodeID);
+                DynamicRouteEventHelper.DocumentMoved((int)PreviousParentNodeID, e.TargetParentNodeID);
             }
         }
 
