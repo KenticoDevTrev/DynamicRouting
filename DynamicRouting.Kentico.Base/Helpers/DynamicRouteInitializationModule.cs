@@ -58,8 +58,8 @@ namespace DynamicRouting.Kentico
             DocumentEvents.Insert.After += Document_Insert_After;  // Done
             DocumentEvents.InsertLink.After += Document_InsertLink_After; // Done
             DocumentEvents.InsertNewCulture.After += Document_InsertNewCulture_After; // Done
-            DocumentEvents.Move.Before += Document_Move_Before; //ERROR - SQL errors
-            DocumentEvents.Move.After += Document_Move_After; //ERROR - SQL errors
+            DocumentEvents.Move.Before += Document_Move_Before; // Done
+            DocumentEvents.Move.After += Document_Move_After; // Done
             DocumentEvents.Sort.After += Document_Sort_After; // Done
             DocumentEvents.Update.After += Document_Update_After; // Done
             WorkflowEvents.Publish.After += Document_Publish_After; // Done
