@@ -53,16 +53,16 @@ namespace DynamicRouting.Kentico
 
             // Document Changes
             DocumentEvents.ChangeOrder.After += Document_ChangeOrder_After; // Done
-            DocumentEvents.Copy.After += Document_Copy_After;
+            DocumentEvents.Copy.After += Document_Copy_After; // Done
             DocumentEvents.Delete.After += Document_Delete_After; // Done
             DocumentEvents.Insert.After += Document_Insert_After;  // Done
-            DocumentEvents.InsertLink.After += Document_InsertLink_After;
+            DocumentEvents.InsertLink.After += Document_InsertLink_After; // Done
             DocumentEvents.InsertNewCulture.After += Document_InsertNewCulture_After; // Done
-            DocumentEvents.Move.Before += Document_Move_Before;
-            DocumentEvents.Move.After += Document_Move_After;
+            DocumentEvents.Move.Before += Document_Move_Before; //ERROR - SQL errors
+            DocumentEvents.Move.After += Document_Move_After; //ERROR - SQL errors
             DocumentEvents.Sort.After += Document_Sort_After; // Done
-            DocumentEvents.Update.After += Document_Update_After;
-            WorkflowEvents.Publish.After += Document_Publish_After;
+            DocumentEvents.Update.After += Document_Update_After; // Done
+            WorkflowEvents.Publish.After += Document_Publish_After; // Done
 
             // Handle 301 Redirect creation on Url Slug updates
             UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before;
@@ -71,7 +71,8 @@ namespace DynamicRouting.Kentico
             VersionHistoryInfo.TYPEINFO.Events.Insert.After += VersionHistory_InsertUpdate_After;
             VersionHistoryInfo.TYPEINFO.Events.Update.After += VersionHistory_InsertUpdate_After;
 
-            DynamicRouting.VersionHistoryUrlSlugInfo.TYPEINFO.Events.Insert.After += VersionHistoryUrlSlug_InsertUpdate_After;
+            // Trigger Custom Cache Key for GetPage Logic
+            VersionHistoryUrlSlugInfo.TYPEINFO.Events.Insert.After += VersionHistoryUrlSlug_InsertUpdate_After;
         }
 
         private void VersionHistoryUrlSlug_InsertUpdate_After(object sender, ObjectEventArgs e)
@@ -81,16 +82,17 @@ namespace DynamicRouting.Kentico
             int DocumentID = CacheHelper.Cache(cs =>
             {
                 VersionHistoryInfo VersionHistory = VersionHistoryInfoProvider.GetVersionHistoryInfo(VersionHistoryUrlSlug.VersionHistoryUrlSlugVersionHistoryID);
-                if(VersionHistory != null)
+                if (VersionHistory != null)
                 {
                     cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "cms.versionhistory|byid|" + VersionHistory.VersionHistoryID });
-                } else
+                }
+                else
                 {
                     cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "cms.versionhistory|all" });
                 }
                 return (VersionHistory != null ? VersionHistory.DocumentID : 0);
             }, new CacheSettings(1440, "DocumentIDByVersionHistoryID", VersionHistoryUrlSlug.VersionHistoryUrlSlugVersionHistoryID));
-            
+
             // Touch key to clear version history for this DocumentID
             CacheHelper.TouchKey("dynamicrouting.versionhistoryurlslug|bydocumentid|" + DocumentID);
         }
@@ -105,7 +107,7 @@ namespace DynamicRouting.Kentico
         {
             VersionHistoryInfo VersionHistory = (VersionHistoryInfo)e.Object;
 
-            if(string.IsNullOrWhiteSpace(VersionHistory.NodeXML))
+            if (string.IsNullOrWhiteSpace(VersionHistory.NodeXML))
             {
                 // No Data on Node, probably a delete history
                 return;
@@ -127,7 +129,7 @@ namespace DynamicRouting.Kentico
                 return;
             }
             Document = TreeNode.New(Class.ClassName, NodeXmlData.Tables[0].Rows[0]);
-            
+
             // Create Macro Resolver
             MacroResolver DocResolver = MacroResolver.GetInstance();
             SiteInfo Site = DynamicRouteInternalHelper.GetSite(Document.NodeSiteID);
@@ -143,14 +145,15 @@ namespace DynamicRouting.Kentico
 
             // Get current and update, or create if empty
             VersionHistoryUrlSlugInfo VersionHistoryUrlSlug = DynamicRouteInternalHelper.GetVersionHistoryUrlSlugByVersionHistoryID(VersionHistory.VersionHistoryID);
-            if(VersionHistoryUrlSlug == null)
+            if (VersionHistoryUrlSlug == null)
             {
                 VersionHistoryUrlSlug = new VersionHistoryUrlSlugInfo()
                 {
                     VersionHistoryUrlSlugVersionHistoryID = VersionHistory.VersionHistoryID
                 };
             }
-            if(VersionHistoryUrlSlug.VersionHistoryUrlSlug != Url) { 
+            if (VersionHistoryUrlSlug.VersionHistoryUrlSlug != Url)
+            {
                 VersionHistoryUrlSlug.VersionHistoryUrlSlug = Url;
                 VersionHistoryUrlSlugInfoProvider.SetVersionHistoryUrlSlugInfo(VersionHistoryUrlSlug);
             }
@@ -219,7 +222,8 @@ namespace DynamicRouting.Kentico
         private void Document_Update_After(object sender, DocumentEventArgs e)
         {
             // Update the document itself, only if there is no workflow or it is a published step
-            if(e.Node.WorkflowStep == null || e.Node.WorkflowStep.StepIsPublished) { 
+            if (e.Node.WorkflowStep == null || e.Node.WorkflowStep.StepIsPublished)
+            {
                 DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
             }
         }
@@ -233,26 +237,24 @@ namespace DynamicRouting.Kentico
         private void Document_Move_Before(object sender, DocumentEventArgs e)
         {
             // Add track of the Document's original Parent ID so we can rebuild on that after moved.
-            var Slot = Thread.AllocateNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
+            var Slot = Thread.GetNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
+            if(Slot == null) { 
+                Slot = Thread.AllocateNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
+            }
             Thread.SetData(Slot, e.Node.NodeParentID);
         }
 
         private void Document_Move_After(object sender, DocumentEventArgs e)
         {
-            var Slot = Thread.AllocateNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
-            var PreviousParentNodeID = Thread.GetData(Slot);
-            if (PreviousParentNodeID != null)
+            // Update on the Node itself, this will rebuild itself and it's children
+            DynamicRouteInternalHelper.CommitTransaction(true);
+            DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+
+            var PreviousParentNodeID = Thread.GetData(Thread.GetNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID));
+            if (PreviousParentNodeID != null && (int)PreviousParentNodeID != e.TargetParentNodeID)
             {
-                // Check if the move was just ordering
-                if ((int)PreviousParentNodeID != e.TargetParentNodeID)
-                {
-                    DynamicRouteEventHelper.DocumentMoved((int)PreviousParentNodeID, e.TargetParentNodeID);
-                }
-                else
-                {
-                    // Just update the document which will check for siblings with NodeOrder
-                    DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
-                }
+                // If differnet node IDs, it moved to another parent, so also run Document Moved check on both new and old parent
+                //DynamicRouteEventHelper.DocumentMoved((int)PreviousParentNodeID, e.TargetParentNodeID);
             }
         }
 
