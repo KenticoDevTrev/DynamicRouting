@@ -1,0 +1,40 @@
+﻿using CMS;
+using CMS.Helpers;
+using CMS.MacroEngine;
+using CMS.SiteProvider;
+using CMSApp.Old_App_Code;
+using System;
+using System.Linq;
+
+[assembly: RegisterExtension(typeof(ToolsMVCMacroMethods), typeof(UtilNamespace))]
+[assembly: RegisterExtension(typeof(ToolsMVCMacroMethods), typeof(bool))]
+
+namespace CMSApp.Old_App_Code
+{
+    public class ToolsMVCMacroMethods : MacroMethodContainer
+    {
+        [MacroMethod(typeof(string), "Gets the Proper Url Pattern Title based on the settings of the DynamicRouting.Macro fields", 3)]
+        [MacroMethodParam(0, "IncludeSubTitle", typeof(bool), "If the Sub Title should be appended to the title for the URL")]
+        [MacroMethodParam(1, "Title", typeof(string), "The Title")]
+        [MacroMethodParam(2, "SubTitle", typeof(string), "The Sub Title.")]
+        public static object SubTitleAddition(EvaluationContext context, params object[] parameters)
+        {
+            // Based on the Macro Resolver which has the TreeNode Data, return the ParentUrl
+            if(parameters.Length < 3)
+            {
+                throw new NotSupportedException();
+            }
+            bool IncludeSubTitle = ValidationHelper.GetBoolean(parameters[0], false);
+            string Title = ValidationHelper.GetString(parameters[1], "");
+            string SubTitle = ValidationHelper.GetString(parameters[2], "");
+
+            if(IncludeSubTitle && !string.IsNullOrWhiteSpace(SubTitle))
+            {
+                return Title + " " + SubTitle;
+            } else
+            {
+                return Title;
+            }
+        }
+    }
+}
