@@ -389,6 +389,7 @@ namespace DynamicRouting
                 RootNodeItem.BuildChildren();
                 if (RootNodeItem.ConflictsExist())
                 {
+                    EventLogProvider.LogEvent("E", "DynamicRouting", "Conflict Exists", eventDescription: $"Could not rebuild the site {SiteName}'s routes due to a conflict in the generated routes.");
                     throw new UrlSlugCollisionException("Conflict Exists, aborting save");
                 }
                 // Save changes
@@ -502,6 +503,7 @@ namespace DynamicRouting
         private static void RebuildRoutesByNode(int NodeID, NodeItemBuilderSettings Settings = null)
         {
             // If settings are not set, then get settings based on the given Node
+            string NodeAliasPath = "";
             if (Settings == null)
             {
                 // Get Site from Node
@@ -510,7 +512,7 @@ namespace DynamicRouting
                     .Columns("NodeSiteID, NodeAliasPath")
                     .CombineWithAnyCulture()
                     .FirstOrDefault();
-
+                NodeAliasPath = Page.NodeAliasPath;
                 // Get Settings based on the Page itself
                 Settings = GetNodeItemBuilderSettings(Page.NodeAliasPath, GetSite(Page.NodeSiteID).SiteName, true, false);
             }
@@ -523,6 +525,7 @@ namespace DynamicRouting
                 GivenNodeItem.BuildChildren();
                 if (GivenNodeItem.ConflictsExist())
                 {
+                    EventLogProvider.LogEvent("E", "DynamicRouting", "Conflict Exists", eventDescription: $"Could not save document at {NodeAliasPath} due to a conflict in the generated route.");
                     throw new UrlSlugCollisionException("Conflict Exists, aborting save");
                 }
                 // Save changes
