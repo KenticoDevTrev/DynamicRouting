@@ -179,6 +179,7 @@ namespace DynamicRouting
                     .WhereEquals("NodeID", NodeID)
                     .Culture(CultureCode)
                     .CombineWithDefaultCulture(IsDefaultCulture || Settings.GenerateIfCultureDoesntExist)
+                    .PublishedVersion(true)
                     .FirstOrDefault();
 
                 // If the Document is either Null because there is no Default Culture, then get any document
@@ -189,6 +190,7 @@ namespace DynamicRouting
                     Document = DocumentHelper.GetDocuments(ClassName)
                         .WhereEquals("NodeID", NodeID)
                         .CombineWithAnyCulture()
+                        .PublishedVersion(true)
                         .FirstOrDefault();
                     Document.DocumentCulture = CultureCode;
                 }
