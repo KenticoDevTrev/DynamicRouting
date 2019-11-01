@@ -106,57 +106,8 @@ namespace DynamicRouting.Kentico
         private void VersionHistory_InsertUpdate_After(object sender, ObjectEventArgs e)
         {
             VersionHistoryInfo VersionHistory = (VersionHistoryInfo)e.Object;
-
-            if (string.IsNullOrWhiteSpace(VersionHistory.NodeXML))
-            {
-                // No Data on Node, probably a delete history
-                return;
-            }
-
-            // Get versioned document by converting the NodeXML into a DataSet and grabbing the first table's row
-            DataSet NodeXmlData = new DataSet();
-            NodeXmlData.ReadXml(new StringReader(VersionHistory.NodeXML));
-            if (DataHelper.DataSourceIsEmpty(NodeXmlData) || NodeXmlData.Tables.Count == 0 || NodeXmlData.Tables[0].Rows.Count == 0)
-            {
-                EventLogProvider.LogEvent("E", "DynamicRouting", "VersionHistoryUrlSlugError", eventDescription: $"Could not generate Version History Url Slug since the Verison History NodeXML was empty for Version History {VersionHistory.VersionHistoryID}");
-                return;
-            }
             var Class = DynamicRouteInternalHelper.GetClass(VersionHistory.VersionClassID);
-            TreeNode Document = null;
-            if (Class == null)
-            {
-                EventLogProvider.LogEvent("E", "DynamicRouting", "VersionHistoryUrlSlugError", eventDescription: $"Could not generate Version History Url Slug since the VersionClassID was not found for Version History {VersionHistory.VersionHistoryID}");
-                return;
-            }
-            Document = TreeNode.New(Class.ClassName, NodeXmlData.Tables[0].Rows[0]);
-
-            // Create Macro Resolver
-            MacroResolver DocResolver = MacroResolver.GetInstance();
-            SiteInfo Site = DynamicRouteInternalHelper.GetSite(Document.NodeSiteID);
-            DocResolver.SetAnonymousSourceData(new object[] { Site });
-            DocResolver.SetAnonymousSourceData(new object[] { DynamicRouteInternalHelper.GetCulture(Document.DocumentCulture) });
-            DocResolver.SetAnonymousSourceData(new object[] { Document });
-            // Replace "ParentUrl()" with "ParentUrl", then replace that with |ParentUrl| as we will use SQL to escape dynamically replace this with the production parent slug as this can change
-            string Pattern = Regex.Replace(Class.ClassURLPattern, "ParentUrl\\(\\)", "ParentUrl", RegexOptions.IgnoreCase);
-            DocResolver.SetHiddenNamedSourceData("ParentUrl", "ParentUrl");
-
-            string Url = DynamicRouteInternalHelper.GetCleanUrl(DocResolver.ResolveMacros(Pattern), Site.SiteName);
-            Url = Regex.Replace(Url, "/ParentUrl", "|ParentUrl|", RegexOptions.IgnoreCase);
-
-            // Get current and update, or create if empty
-            VersionHistoryUrlSlugInfo VersionHistoryUrlSlug = DynamicRouteInternalHelper.GetVersionHistoryUrlSlugByVersionHistoryID(VersionHistory.VersionHistoryID);
-            if (VersionHistoryUrlSlug == null)
-            {
-                VersionHistoryUrlSlug = new VersionHistoryUrlSlugInfo()
-                {
-                    VersionHistoryUrlSlugVersionHistoryID = VersionHistory.VersionHistoryID
-                };
-            }
-            if (VersionHistoryUrlSlug.VersionHistoryUrlSlug != Url)
-            {
-                VersionHistoryUrlSlug.VersionHistoryUrlSlug = Url;
-                VersionHistoryUrlSlugInfoProvider.SetVersionHistoryUrlSlugInfo(VersionHistoryUrlSlug);
-            }
+            DynamicRouteInternalHelper.SetOrUpdateVersionHistory(VersionHistory, Class.ClassName, Class.ClassURLPattern);
         }
 
         private void UrlSlug_Update_Before(object sender, ObjectEventArgs e)

@@ -30,6 +30,10 @@ namespace DynamicRouting
         /// </summary>
         public bool GenerateIfCultureDoesntExist { get; set; }
 
+        /// <summary>
+        /// If this is false, then although it will queue up the Item, it will not run the queue automatically, used primarily in the Class update
+        /// </summary>
+        public bool CheckQueueImmediately { get; set; } = true;
 
         [NonSerialized]
         private MacroResolver _BaseResolver;

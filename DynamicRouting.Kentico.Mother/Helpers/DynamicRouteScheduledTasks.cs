@@ -17,6 +17,9 @@ namespace DynamicRouting.Kentico
                 case "checkurlslugqueue":
                     DynamicRouteInternalHelper.CheckUrlSlugGenerationQueue();
                     break;
+                case "checkversionhistoryqueue":
+                    DynamicRouteInternalHelper.CheckVersionHistoryGenerationQueue();
+                    break;
             }
             return Result;
         }
