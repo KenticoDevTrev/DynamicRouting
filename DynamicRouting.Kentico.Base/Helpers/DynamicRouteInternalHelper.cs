@@ -409,7 +409,8 @@ namespace DynamicRouting
         /// <param name="ClassName">The Class Name</param>
         public static void RebuildRoutesByClass(string ClassName)
         {
-            DataClassInfo Class = GetClass(ClassName);
+            // Cache may not be clear at this point, so do normaly lookup instead of cached helper
+            DataClassInfo Class = DataClassInfoProvider.GetDataClassInfo(ClassName);
             foreach (string SiteName in SiteInfoProvider.GetSites().Select(x => x.SiteName))
             {
                 // Get NodeItemBuilderSettings, will be searching all children in case of changes.
@@ -704,6 +705,9 @@ namespace DynamicRouting
             {
                 QueueItem.BuildChildren();
                 QueueItem.SaveChanges();
+
+                // If completed successfully, delete the item
+                ItemToRun.Delete();
             }
             catch (Exception ex)
             {
@@ -712,8 +716,9 @@ namespace DynamicRouting
                 ItemToRun.SlugGenerationQueueEnded = DateTime.Now;
                 SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(ItemToRun);
             }
-            // If completed successfully, delete the item
-            ItemToRun.Delete();
+
+            // Now that we are 'finished' call the Check again to processes next item.
+            CheckUrlSlugGenerationQueue();
         }
 
 
@@ -807,8 +812,8 @@ namespace DynamicRouting
             ItemToRun.SetValue("VersionHistoryGenerationQueueEnded", null);
             VersionHistoryGenerationQueueInfoProvider.SetVersionHistoryGenerationQueueInfo(ItemToRun);
 
-            // Get the Class
-            var Class = GetClass(ItemToRun.VersionHistoryGenerationQueueClassID);
+            // Get the Class, don't use cache as doesn't seem to have cleared at this point.
+            var Class = DataClassInfoProvider.GetDataClassInfo(ItemToRun.VersionHistoryGenerationQueueClassID);
 
             // Run update
             try
@@ -819,6 +824,10 @@ namespace DynamicRouting
                      {
                          SetOrUpdateVersionHistory(x, Class.ClassName, ItemToRun.VersionHistoryGenerationQueueUrlPattern);
                      });
+
+                // If completed successfully, delete the item
+                ItemToRun.Delete();
+
             }
             catch (Exception ex)
             {
@@ -833,6 +842,9 @@ namespace DynamicRouting
                 // Now that we are 'finished' call the Check again to processes next item.
                 CheckVersionHistoryGenerationQueue();
             }
+            
+            // Now that we are 'finished' call the Check again to processes next item.
+            CheckVersionHistoryGenerationQueue();
         }
 
         /// <summary>
@@ -870,6 +882,9 @@ namespace DynamicRouting
                      {
                          SetOrUpdateVersionHistory(x, Class.ClassName, ItemToRun.VersionHistoryGenerationQueueUrlPattern);
                      });
+
+                // If completed successfully, delete the item
+                ItemToRun.Delete();
             }
             catch (Exception ex)
             {
@@ -878,8 +893,8 @@ namespace DynamicRouting
                 ItemToRun.VersionHistoryGenerationQueueEnded = DateTime.Now;
                 VersionHistoryGenerationQueueInfoProvider.SetVersionHistoryGenerationQueueInfo(ItemToRun);
             }
-            // If completed successfully, delete the item
-            ItemToRun.Delete();
+            // Now that we are 'finished' call the Check again to processes next item.
+            CheckVersionHistoryGenerationQueue();
         }
 
 
@@ -1019,7 +1034,7 @@ namespace DynamicRouting
                     cs.CacheDependency = CacheHelper.GetCacheDependency("DynamicRouting.VersionHistoryUrlSlug|all");
                 }
                 return VersionHistoryUrlSlug;
-            }, new CacheSettings(1440, "VersionHistoryUrlSlugByID", VersionHistoryID));
+            }, new CacheSettings(0, "VersionHistoryUrlSlugByID", VersionHistoryID));
         }
 
         /// <summary>

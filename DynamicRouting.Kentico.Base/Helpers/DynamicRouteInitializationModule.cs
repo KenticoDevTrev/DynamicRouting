@@ -263,9 +263,11 @@ namespace DynamicRouting.Kentico
         private void DataClass_Update_After(object sender, ObjectEventArgs e)
         {
             DataClassInfo Class = (DataClassInfo)e.Object;
+            RecursionControl PreventDoubleClassUpdateTrigger = new RecursionControl("PreventDoubleClassUpdateTrigger_" + Class.ClassName);
+
             // If the "Continue" is false, it means that a DataClass_Update_Before found that the UrlPattern was changed
             // Otherwise the "Continue" will be true that this is the first time triggering it.
-            if (!new RecursionControl("TriggerClassUpdateAfter_" + Class.ClassName).Continue)
+            if (!new RecursionControl("TriggerClassUpdateAfter_" + Class.ClassName).Continue && PreventDoubleClassUpdateTrigger.Continue)
             {
                 DynamicRouteEventHelper.ClassUrlPatternChanged(Class.ClassName);
             }
