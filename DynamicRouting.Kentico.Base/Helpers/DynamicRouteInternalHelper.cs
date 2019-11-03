@@ -409,8 +409,7 @@ namespace DynamicRouting
         /// <param name="ClassName">The Class Name</param>
         public static void RebuildRoutesByClass(string ClassName)
         {
-            // Cache may not be clear at this point, so do normaly lookup instead of cached helper
-            DataClassInfo Class = DataClassInfoProvider.GetDataClassInfo(ClassName);
+            DataClassInfo Class = GetClass(ClassName);
             foreach (string SiteName in SiteInfoProvider.GetSites().Select(x => x.SiteName))
             {
                 // Get NodeItemBuilderSettings, will be searching all children in case of changes.
@@ -813,7 +812,7 @@ namespace DynamicRouting
             VersionHistoryGenerationQueueInfoProvider.SetVersionHistoryGenerationQueueInfo(ItemToRun);
 
             // Get the Class, don't use cache as doesn't seem to have cleared at this point.
-            var Class = DataClassInfoProvider.GetDataClassInfo(ItemToRun.VersionHistoryGenerationQueueClassID);
+            var Class = GetClass(ItemToRun.VersionHistoryGenerationQueueClassID);
 
             // Run update
             try
