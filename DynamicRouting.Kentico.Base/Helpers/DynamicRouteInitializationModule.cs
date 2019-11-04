@@ -65,8 +65,11 @@ namespace DynamicRouting.Kentico
             WorkflowEvents.Publish.After += Document_Publish_After; // Done
 
             // Handle 301 Redirect creation on Url Slug updates
-            UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before;
+            UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before_301Redirect;
 
+            // Handle if IsCustom was true and is now false to re-build the slug
+            UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before_IsCustomRebuild;
+            UrlSlugInfo.TYPEINFO.Events.Update.After += UrlSlug_Update_After_IsCustomRebuild;
             // Attach to Workflow History events to generate Workflow History Url Slugs
             VersionHistoryInfo.TYPEINFO.Events.Insert.After += VersionHistory_InsertUpdate_After;
             VersionHistoryInfo.TYPEINFO.Events.Update.After += VersionHistory_InsertUpdate_After;
@@ -74,6 +77,29 @@ namespace DynamicRouting.Kentico
             // Trigger Custom Cache Key for GetPage Logic
             VersionHistoryUrlSlugInfo.TYPEINFO.Events.Insert.After += VersionHistoryUrlSlug_InsertUpdate_After;
         }
+
+        private void UrlSlug_Update_After_IsCustomRebuild(object sender, ObjectEventArgs e)
+        {
+            UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
+            RecursionControl Trigger = new RecursionControl("UrlSlugNoLongerCustom_" + UrlSlug.UrlSlugGuid);
+            if(!Trigger.Continue)
+            {
+                // If Continue is false, then the Before update shows this needs to be rebuilt.
+                DynamicRouteInternalHelper.RebuildRoutesByNode(UrlSlug.UrlSlugNodeID);
+            }
+        }
+
+        private void UrlSlug_Update_Before_IsCustomRebuild(object sender, ObjectEventArgs e)
+        {
+            UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
+            if (!UrlSlug.UrlSlugIsCustom && ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), UrlSlug.UrlSlugIsCustom))
+            {
+                // Add hook so the Url Slug will be re-rendered after it's updated
+                RecursionControl Trigger = new RecursionControl("UrlSlugNoLongerCustom_" + UrlSlug.UrlSlugGuid);
+                var Triggered = Trigger.Continue;
+            }
+        }
+
 
         private void VersionHistoryUrlSlug_InsertUpdate_After(object sender, ObjectEventArgs e)
         {
@@ -110,7 +136,7 @@ namespace DynamicRouting.Kentico
             DynamicRouteInternalHelper.SetOrUpdateVersionHistory(VersionHistory, Class.ClassName, Class.ClassURLPattern);
         }
 
-        private void UrlSlug_Update_Before(object sender, ObjectEventArgs e)
+        private void UrlSlug_Update_Before_301Redirect(object sender, ObjectEventArgs e)
         {
             UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
             string OriginalUrlSlug = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug);
