@@ -2,6 +2,7 @@
 using CMS.DocumentEngine;
 using CMS.EventLog;
 using CMS.SiteProvider;
+using CMS.UIControls;
 using DynamicRouting;
 using DynamicRouting.Kentico;
 using System;
@@ -10,7 +11,7 @@ using System.Linq;
 
 namespace CMSApp.CMSModules.DynamicRouting
 {
-    public partial class Testing : System.Web.UI.Page
+    public partial class QuickOperations : CMSPage
     {
         protected void Page_Load(object sender, EventArgs e)
         {
@@ -19,14 +20,12 @@ namespace CMSApp.CMSModules.DynamicRouting
 
         protected void btnRebuildSite_Click(object sender, EventArgs e)
         {
-            //EventLogProvider.LogInformation("DynamicRouteTesting", "TestStart", eventDescription: DateTime.Now.ToString() + " " + DateTime.Now.Millisecond.ToString());
             DynamicRouteInternalHelper.RebuildRoutesBySite(SiteContext.CurrentSiteName);
-            //EventLogProvider.LogInformation("DynamicRouteTesting", "TestEnd", eventDescription: DateTime.Now.ToString() + " " + DateTime.Now.Millisecond.ToString());
         }
 
         protected void btnRebuildSubTree_Click(object sender, EventArgs e)
         {
-            TreeNode Page = DocumentHelper.GetDocuments().Path(tbxPath.Text).FirstOrDefault();
+            TreeNode Page = DocumentHelper.GetDocuments().Path("/"+tbxPath.Value.ToString().Trim('%').Trim('/')).FirstOrDefault();
 
             if (Page != null)
             {
@@ -37,6 +36,11 @@ namespace CMSApp.CMSModules.DynamicRouting
         protected void btnRunQueue_Click(object sender, EventArgs e)
         {
             DynamicRouteInternalHelper.CheckUrlSlugGenerationQueue();
+        }
+
+        protected void btnRunVersionHistoryQueue_Click(object sender, EventArgs e)
+        {
+            DynamicRouteInternalHelper.CheckVersionHistoryGenerationQueue();
         }
 
         protected void btnCheckUrl_Click(object sender, EventArgs e)

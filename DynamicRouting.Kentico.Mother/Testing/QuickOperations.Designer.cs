@@ -11,7 +11,7 @@ namespace CMSApp.CMSModules.DynamicRouting
 {
 
 
-    public partial class Testing
+    public partial class QuickOperations
     {
 
         /// <summary>
@@ -39,7 +39,7 @@ namespace CMSApp.CMSModules.DynamicRouting
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.TextBox tbxPath;
+        protected global::CMS.FormEngine.Web.UI.FormControl tbxPath;
 
         /// <summary>
         /// btnRebuildSubTree control.

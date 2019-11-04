@@ -123,6 +123,9 @@
     <Reference Include="CMS.FormEngine, Version=12.0.0.0, Culture=neutral, PublicKeyToken=834b12a258f213f9, processorArchitecture=MSIL">
       <HintPath>..\packages\Kentico.Libraries.12.0.29\lib\net461\CMS.FormEngine.dll</HintPath>
     </Reference>
+    <Reference Include="CMS.FormEngine.Web.UI">
+      <HintPath>..\..\..\Kentico12\Lib\CMS.FormEngine.Web.UI.dll</HintPath>
+    </Reference>
     <Reference Include="CMS.Forums, Version=12.0.0.0, Culture=neutral, PublicKeyToken=834b12a258f213f9, processorArchitecture=MSIL">
       <HintPath>..\packages\Kentico.Libraries.12.0.29\lib\net461\CMS.Forums.dll</HintPath>
     </Reference>
@@ -242,6 +245,9 @@
     </Reference>
     <Reference Include="CMS.TranslationServices, Version=12.0.0.0, Culture=neutral, PublicKeyToken=834b12a258f213f9, processorArchitecture=MSIL">
       <HintPath>..\packages\Kentico.Libraries.12.0.29\lib\net461\CMS.TranslationServices.dll</HintPath>
+    </Reference>
+    <Reference Include="CMS.UIControls">
+      <HintPath>..\..\..\Kentico12\Lib\CMS.UIControls.dll</HintPath>
     </Reference>
     <Reference Include="CMS.WebAnalytics, Version=12.0.0.0, Culture=neutral, PublicKeyToken=834b12a258f213f9, processorArchitecture=MSIL">
       <HintPath>..\packages\Kentico.Libraries.12.0.29\lib\net461\CMS.WebAnalytics.dll</HintPath>
@@ -531,11 +537,11 @@
     <Compile Include="Helpers\DynamicRouteInitializationModule_Mother.cs" />
     <Compile Include="Helpers\DynamicRouteScheduledTasks.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Testing\Testing.cs">
+    <Compile Include="Testing\QuickOperations.cs">
       <SubType>ASPXCodeBehind</SubType>
     </Compile>
-    <Compile Include="Testing\Testing.Designer.cs">
-      <DependentUpon>Testing.cs</DependentUpon>
+    <Compile Include="Testing\QuickOperations.Designer.cs">
+      <DependentUpon>QuickOperations.cs</DependentUpon>
     </Compile>
   </ItemGroup>
   <ItemGroup>
