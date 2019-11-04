@@ -70,6 +70,7 @@ namespace DynamicRouting.Kentico
             // Handle if IsCustom was true and is now false to re-build the slug
             UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before_IsCustomRebuild;
             UrlSlugInfo.TYPEINFO.Events.Update.After += UrlSlug_Update_After_IsCustomRebuild;
+
             // Attach to Workflow History events to generate Workflow History Url Slugs
             VersionHistoryInfo.TYPEINFO.Events.Insert.After += VersionHistory_InsertUpdate_After;
             VersionHistoryInfo.TYPEINFO.Events.Update.After += VersionHistory_InsertUpdate_After;
