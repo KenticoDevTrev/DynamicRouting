@@ -27,11 +27,13 @@ namespace DynamicRouting
         /// <summary>
         /// Type information.
         /// </summary>
-#warning "You will need to configure the type info."
         public static readonly ObjectTypeInfo TYPEINFO = new ObjectTypeInfo(typeof(VersionHistoryUrlSlugInfoProvider), OBJECT_TYPE, "DynamicRouting.VersionHistoryUrlSlug", "VersionHistoryUrlSlugID", "VersionHistoryUrlSlugLastModified", "VersionHistoryUrlSlugGuid", null, null, null, null, null, null)
         {
             ModuleName = "DynamicRouting.Kentico",
             TouchCacheDependencies = true,
+            SupportsCloning = false,
+            AllowDataExport = false,
+            AllowRestore = false,
             DependsOn = new List<ObjectDependency>()
             {
                 new ObjectDependency("VersionHistoryUrlSlugVersionHistoryID", "cms.versionhistory", ObjectDependencyEnum.Required),

@@ -26,11 +26,13 @@ namespace DynamicRouting
         /// <summary>
         /// Type information.
         /// </summary>
-#warning "You will need to configure the type info."
         public static readonly ObjectTypeInfo TYPEINFO = new ObjectTypeInfo(typeof(SlugGenerationQueueInfoProvider), OBJECT_TYPE, "DynamicRouting.SlugGenerationQueue", "SlugGenerationQueueID", "SlugGenerationQueueLastModified", "SlugGenerationQueueGuid", null, null, null, null, null, null)
         {
             ModuleName = "DynamicRouting.Kentico",
             TouchCacheDependencies = true,
+            SupportsCloning = false,
+            AllowDataExport = false,
+            AllowRestore = false,
         };
 
 

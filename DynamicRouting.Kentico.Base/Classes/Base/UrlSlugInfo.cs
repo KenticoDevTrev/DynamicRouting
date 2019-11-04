@@ -31,6 +31,9 @@ namespace DynamicRouting
         {
             ModuleName = "DynamicRouting.Kentico",
             TouchCacheDependencies = true,
+            SupportsCloning = false,
+            AllowDataExport = false,
+            AllowRestore = false,
             DependsOn = new List<ObjectDependency>()
             {
                 new ObjectDependency("UrlSlugNodeID", "cms.node", ObjectDependencyEnum.Required),
