@@ -1051,6 +1051,165 @@ namespace DynamicRouting
             }, new CacheSettings(1440, "GetCultureByName", CultureCode));
         }
 
-        #endregion  
+        #endregion
+
+        #region "Get Page Url Helpers"
+
+        /// <summary>
+        /// Gets the Page's Url Slug based on the given DocumentID and it's Culture.
+        /// </summary>
+        /// <param name="DocumentID">The Document ID</param>
+        /// <returns></returns>
+        public static string GetPageUrl(int DocumentID)
+        {
+            // Convert DocumentID to NodeID + Cultulre
+            TreeNode Page = DocumentHelper.GetDocuments().WhereEquals("DocumentID", DocumentID).Columns("NodeID, DocumentCulture, NodeSiteID").FirstOrDefault();
+            if (Page != null)
+            {
+                return GetPageUrl(Page.NodeID, Page.DocumentCulture, SiteInfoProvider.GetSiteName(Page.NodeSiteID));
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the Page's Url Slug based on the given DocumentGuid and it's Culture.
+        /// </summary>
+        /// <param name="DocumentGuid">The Document Guid</param>
+        /// <returns>The UrlSlug (with ~ prepended) or Null if page not found.</returns>
+        public static string GetPageUrl(Guid DocumentGuid)
+        {
+            // Convert DocumentGuid to NodeID + Cultulre
+            TreeNode Page = DocumentHelper.GetDocuments().WhereEquals("DocumentGuid", DocumentGuid).Columns("NodeID, DocumentCulture, NodeSiteID").FirstOrDefault();
+            if (Page != null)
+            {
+                return GetPageUrl(Page.NodeID, Page.DocumentCulture, SiteInfoProvider.GetSiteName(Page.NodeSiteID));
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the Page's Url Slug based on the given NodeAliasPath, Culture and SiteName.  If Culture not found, then will prioritize the Site's Default Culture, then Cultures by alphabetical order.
+        /// </summary>
+        /// <param name="NodeAliasPath">The Node alias path you wish to select</param>
+        /// <param name="DocumentCulture">The Document Culture, if not provided will use default Site's Culture.</param>
+        /// <param name="SiteName">The Site Name, if not provided then the Current Site's name is used.</param>
+        /// <returns>The UrlSlug (with ~ prepended) or Null if page not found.</returns>
+        public static string GetPageUrl(string NodeAliasPath, string DocumentCulture = null, string SiteName = null)
+        {
+            if (string.IsNullOrWhiteSpace(SiteName))
+            {
+                SiteName = SiteContext.CurrentSiteName;
+            }
+            TreeNode Page = null;
+            if (string.IsNullOrWhiteSpace(DocumentCulture))
+            {
+                Page = DocumentHelper.GetDocuments()
+                    .OnSite(SiteName)
+                    .Path(NodeAliasPath)
+                    .CombineWithDefaultCulture()
+                    .CombineWithAnyCulture()
+                    .Columns("NodeID, DocumentCulture, NodeSiteID")
+                    .FirstOrDefault();
+            }
+            else
+            {
+                Page = DocumentHelper.GetDocuments()
+                    .OnSite(SiteName)
+                    .Path(NodeAliasPath)
+                    .Culture(DocumentCulture)
+                    .CombineWithAnyCulture()
+                    .Columns("NodeID, DocumentCulture, NodeSiteID")
+                    .FirstOrDefault();
+            }
+            if (Page != null)
+            {
+                return GetPageUrl(Page.NodeID, Page.DocumentCulture, SiteInfoProvider.GetSiteName(Page.NodeSiteID));
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the Page's Url Slug based on the given NodeGuid and Culture.  If Culture not found, then will prioritize the Site's Default Culture, then Cultures by alphabetical order.
+        /// </summary>
+        /// <param name="NodeGuid">The Node to find the Url Slug</param>
+        /// <param name="DocumentCulture">The Document Culture, if not provided will use default Site's Culture.</param>
+        /// <returns>The UrlSlug (with ~ prepended) or Null if page not found.</returns>
+        public static string GetPageUrl(Guid NodeGuid, string DocumentCulture = null)
+        {
+            TreeNode Page = null;
+            if (string.IsNullOrWhiteSpace(DocumentCulture))
+            {
+                Page = DocumentHelper.GetDocuments()
+                    .WhereEquals("NodeGuid", NodeGuid)
+                    .CombineWithDefaultCulture()
+                    .CombineWithAnyCulture()
+                    .Columns("NodeID, DocumentCulture, NodeSiteID")
+                    .FirstOrDefault();
+            }
+            else
+            {
+                Page = DocumentHelper.GetDocuments()
+                    .WhereEquals("NodeGuid", NodeGuid)
+                    .Culture(DocumentCulture)
+                    .CombineWithAnyCulture()
+                    .Columns("NodeID, DocumentCulture, NodeSiteID")
+                    .FirstOrDefault();
+            }
+            if (Page != null)
+            {
+                return GetPageUrl(Page.NodeID, Page.DocumentCulture, SiteInfoProvider.GetSiteName(Page.NodeSiteID));
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the Page's Url Slug based on the given NodeID and Culture.  If Culture not found, then will prioritize the Site's Default Culture, then Cultures by alphabetical order.
+        /// </summary>
+        /// <param name="NodeID">The NodeID</param>
+        /// <param name="DocumentCulture">The Document Culture, if not provided will use default Site's Culture.</param>
+        /// <param name="SiteName">The Site Name, if not provided then will query the NodeID to find it's site.</param>
+        /// <returns>The UrlSlug (with ~ prepended) or Null if page not found.</returns>
+        public static string GetPageUrl(int NodeID, string DocumentCulture = null, string SiteName = null)
+        {
+            if (SiteName == null)
+            {
+                TreeNode Page = DocumentHelper.GetDocuments().WhereEquals("NodeID", NodeID).Columns("NodeSiteID").FirstOrDefault();
+                if (Page != null)
+                {
+                    SiteName = SiteInfoProvider.GetSiteName(Page.NodeSiteID);
+                }
+                else
+                {
+                    // No page found, so won't find a Url Slug either
+                    return null;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(DocumentCulture))
+            {
+                DocumentCulture = CultureHelper.GetDefaultCultureCode(SiteName);
+            }
+
+            UrlSlugInfo UrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                .WhereEquals("NodeID", NodeID)
+                .OrderBy($"case when UrlSlugCultureCode = '{SqlHelper.EscapeQuotes(DocumentCulture)}' then 0 else 1 end, case when UrlSlugCultureCode = '{CultureHelper.GetDefaultCultureCode(SiteName)}' then 0 else 1 end, UrlSlugCultureCode")
+                .FirstOrDefault();
+
+            return UrlSlug != null ? "~" + UrlSlug.UrlSlug : null;
+        }
+
+        #endregion
     }
 }
