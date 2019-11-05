@@ -1,28 +1,18 @@
 ﻿using CMS.Base;
 using CMS.DataEngine;
 using CMS.DocumentEngine;
-using CMS.EventLog;
 using CMS.Helpers;
-using CMS.Localization;
-using CMS.MacroEngine;
 using CMS.SiteProvider;
 using DynamicRouting.Helpers;
-using DynamicRouting.Kentico.Classes;
 using DynamicRouting.Kentico.MVC;
 using Kentico.Content.Web.Mvc;
 using Kentico.Web.Mvc;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data;
-using System.Diagnostics;
-using System.IO;
+using System.Globalization;
 using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Web;
-using System.Xml.Serialization;
 
 namespace DynamicRouting
 {
@@ -51,82 +41,143 @@ namespace DynamicRouting
             try
             {
                 PreviewEnabled = HttpContext.Current.Kentico().Preview().Enabled;
-                if(PreviewEnabled && string.IsNullOrWhiteSpace(Culture))
-                {
-                    Culture = HttpContext.Current.Kentico().Preview().CultureName;
-                }
             }
             catch (InvalidOperationException ex) { }
+
+            GetCultureEventArgs CultureArgs = new GetCultureEventArgs()
+            {
+                DefaultCulture = DefaultCulture,
+                SiteName = SiteName,
+                Request = HttpContext.Current.Request,
+                PreviewEnabled = PreviewEnabled
+            };
+
+            using (var DynamicRoutingGetCultureTaskHandler = DynamicRoutingEvents.GetCulture.StartEvent(CultureArgs))
+            {
+                try
+                {
+                    if (PreviewEnabled && string.IsNullOrWhiteSpace(Culture))
+                    {
+                        CultureArgs.Culture = HttpContext.Current.Kentico().Preview().CultureName;
+                    }
+                }
+                catch (InvalidOperationException ex) { }
+
+                // If culture not set, use the CultureInfo.CurrentCulture property of System.Globalization
+                if(string.IsNullOrWhiteSpace(Culture))
+                {
+                    CultureArgs.Culture = CultureInfo.CurrentCulture.Name;
+                }
+
+                DynamicRoutingGetCultureTaskHandler.FinishEvent();
+            }
+
+            // set the culture
+            Culture = CultureArgs.Culture;
 
             // Convert Columns to 
             string ColumnsVal = Columns != null ? string.Join(",", Columns.Distinct()) : "*";
 
-            // Get Page based on Url
-            return CacheHelper.Cache<TreeNode>(cs =>
+            // Create GetPageEventArgs Event ARgs
+            GetPageEventArgs Args = new GetPageEventArgs()
             {
-                // Using custom query as Kentico's API was not properly handling a Join and where.
-                DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
+                RelativeUrl = Url,
+                Culture = Culture,
+                DefaultCulture = DefaultCulture,
+                SiteName = SiteName,
+                PreviewEnabled = PreviewEnabled,
+                ColumnsVal = ColumnsVal,
+                Request = HttpContext.Current.Request
+            };
+
+            // Run any GetPage Event hooks which allow the users to set the Found Page
+            TreeNode FoundPage = null;
+            using (var DynamicRoutingGetPageTaskHandler = DynamicRoutingEvents.GetPage.StartEvent(Args))
+            {
+                if (Args.FoundPage == null)
                 {
+                    try
+                    {
+                        Args.FoundPage = CacheHelper.Cache<TreeNode>(cs =>
+                        {
+                        // Using custom query as Kentico's API was not properly handling a Join and where.
+                        DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
+                            {
                     {"@Url", Url },
                     {"@Culture", Culture },
                     {"@DefaultCulture", DefaultCulture },
                     {"@SiteName", SiteName },
                     {"@PreviewEnabled", PreviewEnabled }
-                }, topN: 1, columns: "DocumentID, ClassName").Tables[0];
-                if (NodeTable.Rows.Count > 0)
-                {
-                    int DocumentID = ValidationHelper.GetInteger(NodeTable.Rows[0]["DocumentID"], 0);
-                    string ClassName = ValidationHelper.GetString(NodeTable.Rows[0]["ClassName"], "");
+                            }, topN: 1, columns: "DocumentID, ClassName").Tables[0];
+                            if (NodeTable.Rows.Count > 0)
+                            {
+                                int DocumentID = ValidationHelper.GetInteger(NodeTable.Rows[0]["DocumentID"], 0);
+                                string ClassName = ValidationHelper.GetString(NodeTable.Rows[0]["ClassName"], "");
 
-                    DocumentQuery Query = DocumentHelper.GetDocuments(ClassName)
-                            .WhereEquals("DocumentID", DocumentID)
-                            .CombineWithAnyCulture();
+                                DocumentQuery Query = DocumentHelper.GetDocuments(ClassName)
+                                        .WhereEquals("DocumentID", DocumentID)
+                                        .CombineWithAnyCulture();
 
-                    // Handle Columns
-                    if (!string.IsNullOrWhiteSpace(ColumnsVal))
-                    {
-                        Query.Columns(ColumnsVal);
-                    }
+                            // Handle Columns
+                            if (!string.IsNullOrWhiteSpace(ColumnsVal))
+                                {
+                                    Query.Columns(ColumnsVal);
+                                }
 
-                    // Handle Preview
-                    if (PreviewEnabled)
-                    {
-                        Query.LatestVersion(true)
-                          .Published(false);
-                    }
-                    else
-                    {
-                        Query.PublishedVersion(true);
-                    }
+                            // Handle Preview
+                            if (PreviewEnabled)
+                                {
+                                    Query.LatestVersion(true)
+                                      .Published(false);
+                                }
+                                else
+                                {
+                                    Query.PublishedVersion(true);
+                                }
 
-                    TreeNode Page = Query.FirstOrDefault();
+                                TreeNode Page = Query.FirstOrDefault();
 
-                    // Cache dependencies on the Url Slugs and also the DocumentID if available.
-                    if (cs.Cached)
-                    {
-                        if (Page != null)
-                        {
-                            // The "dynamicrouting.versionhistoryurlslug|bydocumentid|"+Page.DocumentID is custom and triggered through an event hook.
-                            cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
+                            // Cache dependencies on the Url Slugs and also the DocumentID if available.
+                            if (cs.Cached)
+                                {
+                                    if (Page != null)
+                                    {
+                                    // The "dynamicrouting.versionhistoryurlslug|bydocumentid|"+Page.DocumentID is custom and triggered through an event hook.
+                                    cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
                             "dynamicrouting.urlslug|all",
                             "dynamicrouting.versionhistoryurlslug|bydocumentid|"+Page.DocumentID,
                             "documentid|" + Page.DocumentID,  });
-                        }
-                        else
-                        {
-                            cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "dynamicrouting.urlslug|all" });
-                        }
+                                    }
+                                    else
+                                    {
+                                        cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "dynamicrouting.urlslug|all" });
+                                    }
 
+                                }
+
+                            // Return Page Data
+                            return Query.FirstOrDefault();
+                            }
+                            else
+                            {
+                                return null;
+                            }
+                        }, new CacheSettings(1440, "DynamicRoutine.GetPage", Url, Culture, DefaultCulture, SiteName, PreviewEnabled, ColumnsVal));
                     }
+                    catch (Exception ex)
+                    {
+                        // Add exception so they can handle
+                        DynamicRoutingGetPageTaskHandler.EventArguments.ExceptionOnLookup = ex;
+                    }
+                }
 
-                    // Return Page Data
-                    return Query.FirstOrDefault();
-                }
-                else
-                {
-                    return null;
-                }
-            }, new CacheSettings(1440, "DynamicRoutine.GetPage", Url, Culture, DefaultCulture, SiteName, PreviewEnabled, ColumnsVal));
+                // Finish event, this will trigger the After
+                DynamicRoutingGetPageTaskHandler.FinishEvent();
+
+                // Return whatever Found Page
+                FoundPage = DynamicRoutingGetPageTaskHandler.EventArguments.FoundPage;
+            }
+            return FoundPage;
         }
 
         /// <summary>

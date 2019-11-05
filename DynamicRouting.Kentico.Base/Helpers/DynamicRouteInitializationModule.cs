@@ -140,7 +140,10 @@ namespace DynamicRouting.Kentico
         private void UrlSlug_Update_Before_301Redirect(object sender, ObjectEventArgs e)
         {
             UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
-            string OriginalUrlSlug = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug);
+
+            // Alternative Urls don't have the slash at the beginning
+            string OriginalUrlSlug = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug).Trim('/');
+
             // save previous Url to 301 redirects
             // Get DocumentID
             var Document = DocumentHelper.GetDocuments()
