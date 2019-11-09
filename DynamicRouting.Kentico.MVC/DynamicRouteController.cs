@@ -36,5 +36,11 @@ namespace DynamicRouting.Kentico.MVC
                 return View(routeConfig.ViewName, node);
             }
         }
+
+        public ActionResult RouteValuesNotFound()
+        {
+            var node = DynamicRouteHelper.GetPage();
+            return Content($"<h1>No Route Value Found</h1><p>No DynamicRouting assembly tag was found for the class <strong>{node.ClassName}</strong>, could not route page {node.NodeAliasPath}</p>");
+        }
     }
 }

@@ -75,6 +75,10 @@
     <Reference Include="CMS.Base, Version=12.0.0.0, Culture=neutral, PublicKeyToken=834b12a258f213f9, processorArchitecture=MSIL">
       <HintPath>..\packages\Kentico.Libraries.12.0.29\lib\net461\CMS.Base.dll</HintPath>
     </Reference>
+    <Reference Include="CMS.Base.Web.UI, Version=12.0.0.0, Culture=neutral, PublicKeyToken=834b12a258f213f9, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\Kentico12\Lib\CMS.Base.Web.UI.dll</HintPath>
+    </Reference>
     <Reference Include="CMS.Blogs, Version=12.0.0.0, Culture=neutral, PublicKeyToken=834b12a258f213f9, processorArchitecture=MSIL">
       <HintPath>..\packages\Kentico.Libraries.12.0.29\lib\net461\CMS.Blogs.dll</HintPath>
     </Reference>
@@ -536,6 +540,8 @@
     <Compile Include="Helpers\DynamicRouteHelper.cs" />
     <Compile Include="Helpers\DynamicRouteInitializationModule_Mother.cs" />
     <Compile Include="Helpers\DynamicRouteScheduledTasks.cs" />
+    <Compile Include="Helpers\VersionHistorySlugGenerationQueueUnigridExtension.cs" />
+    <Compile Include="Helpers\SlugGenerationQueueUnigridExtension.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Testing\QuickOperations.cs">
       <SubType>ASPXCodeBehind</SubType>

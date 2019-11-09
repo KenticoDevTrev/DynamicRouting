@@ -703,10 +703,20 @@ namespace DynamicRouting
             try
             {
                 QueueItem.BuildChildren();
-                QueueItem.SaveChanges();
-
-                // If completed successfully, delete the item
-                ItemToRun.Delete();
+                if(ErrorOnConflict() && QueueItem.ConflictsExist())
+                {
+                    ItemToRun.SlugGenerationQueueErrors = $"The Following Conflicts were found:\n\r{string.Join("\n\r", QueueItem.GetConflictItems())}\n\rPlease Correct and re-run queue item.";
+                    ItemToRun.SlugGenerationQueueEnded = DateTime.Now;
+                    ItemToRun.SetValue("SlugGenerationQueueThreadID", null);
+                    ItemToRun.SetValue("SlugGenerationQueueApplicationID", null);
+                    ItemToRun.SlugGenerationQueueRunning = false;
+                    SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(ItemToRun);
+                    return;
+                } else { 
+                    QueueItem.SaveChanges();
+                    // If completed successfully, delete the item
+                    ItemToRun.Delete();
+                }
             }
             catch (Exception ex)
             {
@@ -719,8 +729,6 @@ namespace DynamicRouting
             // Now that we are 'finished' call the Check again to processes next item.
             CheckUrlSlugGenerationQueue();
         }
-
-
 
         /// <summary>
         /// Adds a Version History Url Slug mass update tasks to the queue
@@ -963,7 +971,33 @@ namespace DynamicRouting
         /// <returns></returns>
         public static bool ErrorOnConflict()
         {
-            return ValidationHelper.GetBoolean(SettingsKeyInfoProvider.GetBoolValue("CancelActionOnConflict", new SiteInfoIdentifier(SiteContext.CurrentSiteID)), false);
+            return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("UrlSlugConflictBehavior", new SiteInfoIdentifier(SiteContext.CurrentSiteID)), "append").Equals("cancel", StringComparison.InvariantCultureIgnoreCase);
+        }
+
+        /// <summary>
+        /// Gets the Class Names that shouldn't use the Url Slugs for their relative/absolute url.  These classes will also be ignored in finding a page through the DynamicRouteHelper.GetPage()
+        /// </summary>
+        /// <returns>List of the class names, lower cased</returns>
+        public static List<string> UrlSlugExcludedClassNames()
+        {
+            return CacheHelper.Cache(cs =>
+            {
+                if(cs.Cached)
+                {
+                    cs.CacheDependency = CacheHelper.GetCacheDependency("cms.settingskey|byname|urlslugexcludedclasses");
+                }
+                return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("UrlSlugExcludedClasses", new SiteInfoIdentifier(SiteContext.CurrentSiteID)), "").ToLower().Split(";".ToCharArray(), StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+
+            }, new CacheSettings(1440, "UrlSlugExcludedClassNames"));
+        }
+
+        /// <summary>
+        /// If Url Conflicts should have an -(#) appended to resolve conflicts
+        /// </summary>
+        /// <returns>True if the conflicting url should have an appendage added to it.</returns>
+        public static bool AppendPostFixOnConflict()
+        {
+            return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("UrlSlugConflictBehavior", new SiteInfoIdentifier(SiteContext.CurrentSiteID)), "append").Equals("append", StringComparison.InvariantCultureIgnoreCase);
         }
 
         /// <summary>

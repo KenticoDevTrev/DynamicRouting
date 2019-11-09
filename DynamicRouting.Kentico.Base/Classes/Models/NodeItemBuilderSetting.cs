@@ -82,11 +82,6 @@ namespace DynamicRouting
         public bool BuildDescendents { get; set; }
 
         /// <summary>
-        /// If true, then during save A check will be performed for conflicts and will log and not-save routes if conflicts do exist.
-        /// </summary>
-        public bool LogConflicts { get; set; } = false;
-
-        /// <summary>
         /// Should only be used for deserialization
         /// </summary>
         public NodeItemBuilderSettings()

@@ -18,7 +18,8 @@ namespace DynamicRouting.Kentico.MVC
                 return false;
             }
 
-            return DynamicRouteHelper.GetPage() is object;
+            var page = DynamicRouteHelper.GetPage();
+            return page != null && !DynamicRouteInternalHelper.UrlSlugExcludedClassNames().Contains(page.ClassName.ToLower());
         }
     }
 }

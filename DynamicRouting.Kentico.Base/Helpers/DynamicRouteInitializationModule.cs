@@ -83,7 +83,7 @@ namespace DynamicRouting.Kentico
         {
             UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
             RecursionControl Trigger = new RecursionControl("UrlSlugNoLongerCustom_" + UrlSlug.UrlSlugGuid);
-            if(!Trigger.Continue)
+            if (!Trigger.Continue)
             {
                 // If Continue is false, then the Before update shows this needs to be rebuilt.
                 DynamicRouteInternalHelper.RebuildRoutesByNode(UrlSlug.UrlSlugNodeID);
@@ -162,28 +162,26 @@ namespace DynamicRouting.Kentico
                     // If Same NodeID, then make sure the DocumentID is of the one that is the DefaultCulture, if no DefaultCulture
                     // Exists, then just ignore
                     var AlternativeUrlDocument = DocumentHelper.GetDocument(AlternativeUrl.AlternativeUrlDocumentID, new TreeProvider());
-                    if (AlternativeUrlDocument.NodeID == UrlSlug.UrlSlugNodeID)
+
+                    // Log a warning
+                    if (AlternativeUrlDocument.NodeID != UrlSlug.UrlSlugNodeID)
                     {
-                        TreeNode DefaultLanguage = DocumentHelper.GetDocuments()
-                            .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
-                            .CombineWithDefaultCulture()
-                            .FirstOrDefault();
-                        if (DefaultLanguage != null && AlternativeUrl.AlternativeUrlDocumentID != DefaultLanguage.DocumentID)
-                        {
-                            AlternativeUrl.AlternativeUrlDocumentID = DefaultLanguage.DocumentID;
-                            AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
-                        }
-                    }
-                    else
-                    {
-                        // Log 
-                        EventLogProvider.LogEvent("W", "DynamicRouting", "AlternativeUrlConflict", eventDescription: string.Format("Could not create Alternative Url '{0}' for Document {1} [{2}] because it already exists as an Alternative Url for Document {3} [{4}]",
+                        EventLogProvider.LogEvent("W", "DynamicRouting", "AlternativeUrlConflict", eventDescription: string.Format("Conflict between Alternative Url '{0}' exists for Document {1} [{2}] which already exists as an Alternative Url for Document {3} [{4}].",
                             AlternativeUrl.AlternativeUrlUrl,
                             Document.NodeAliasPath,
                             Document.DocumentCulture,
                             AlternativeUrlDocument.NodeAliasPath,
                             AlternativeUrlDocument.DocumentCulture
                             ));
+                    }
+                    TreeNode DefaultLanguage = DocumentHelper.GetDocuments()
+                        .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                        .CombineWithDefaultCulture()
+                        .FirstOrDefault();
+                    if (DefaultLanguage != null && AlternativeUrl.AlternativeUrlDocumentID != DefaultLanguage.DocumentID)
+                    {
+                        AlternativeUrl.AlternativeUrlDocumentID = DefaultLanguage.DocumentID;
+                        AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
                     }
                 }
             }
@@ -196,7 +194,13 @@ namespace DynamicRouting.Kentico
                     AlternativeUrlSiteID = Document.NodeSiteID,
                 };
                 AlternativeUrl.SetValue("AlternativeUrlUrl", OriginalUrlSlug);
-                AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                try
+                {
+                    AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                } catch(InvalidAlternativeUrlException ex)
+                {
+                    // Figure out what to do, it does'nt match the pattern constraints.
+                }
             }
         }
 
@@ -219,7 +223,8 @@ namespace DynamicRouting.Kentico
         {
             // Add track of the Document's original Parent ID so we can rebuild on that after moved.
             var Slot = Thread.GetNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
-            if(Slot == null) { 
+            if (Slot == null)
+            {
                 Slot = Thread.AllocateNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
             }
             Thread.SetData(Slot, e.Node.NodeParentID);

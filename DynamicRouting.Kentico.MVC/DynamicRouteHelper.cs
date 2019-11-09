@@ -162,7 +162,7 @@ namespace DynamicRouting
                             {
                                 return null;
                             }
-                        }, new CacheSettings(1440, "DynamicRoutine.GetPage", Url, Culture, DefaultCulture, SiteName, PreviewEnabled, ColumnsVal));
+                        }, new CacheSettings((PreviewEnabled ? 0 : 1440), "DynamicRoutine.GetPage", Url, Culture, DefaultCulture, SiteName, PreviewEnabled, ColumnsVal));
                     }
                     catch (Exception ex)
                     {

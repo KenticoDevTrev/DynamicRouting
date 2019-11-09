@@ -470,6 +470,7 @@
     <Compile Include="Helpers\DynamicRouteInternalHelper.cs" />
     <Compile Include="Helpers\DynamicRouteInitializationModule.cs" />
     <Compile Include="Helpers\EnvironmentHelper.cs" />
+    <Compile Include="Overrides\DocumentUrlProviderOverride.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

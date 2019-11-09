@@ -207,9 +207,11 @@ namespace DynamicRouting
                             .WhereEquals("UrlSlugNodeID", Document.NodeParentID)
                             .OrderBy($"case when UrlSlugCultureCode = '{CultureCode}' then 0 else 1 end, case when UrlSlugCultureCode = '{Settings.DefaultCultureCode}' then 0 else 1 end, UrlSlugCultureCode")
                             .FirstOrDefault();
-                        if(ParentSlug != null) { 
+                        if (ParentSlug != null)
+                        {
                             DocResolver.SetNamedSourceData("ParentUrl", ParentSlug.UrlSlug);
-                        } else
+                        }
+                        else
                         {
                             DocResolver.SetNamedSourceData("ParentUrl", "");
                         }
@@ -286,6 +288,48 @@ namespace DynamicRouting
             return UrlSlug?.UrlSlug;
         }
 
+        public List<string> GetConflictItems()
+        {
+            List<string> Conflicts = new List<string>();
+
+            // Check itself for conflicts with UrlSlugs
+            foreach (NodeUrlSlug UrlSlug in UrlSlugs)
+            {
+                if (UrlSlug.IsNewOrUpdated)
+                {
+                    if (ValidationHelper.GetGuid(UrlSlug.ExistingNodeSlugGuid, Guid.Empty) == Guid.Empty)
+                    {
+                        // Check for existing Url Slug that matches the new Url
+                        var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                            .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
+                            .WhereNotEquals("UrlSlugNodeID", NodeID)
+                            .FirstOrDefault();
+                        if (MatchingUrlSlug != null)
+                        {
+                            // Get NodeAliasPaths
+                            string MainNodePath = DocumentHelper.GetDocuments()
+                                .WhereEquals("NodeID", NodeID)
+                                .FirstOrDefault().NodeAliasPath;
+                            string MatchNodePath = DocumentHelper.GetDocuments()
+                                .WhereEquals("NodeID", MatchingUrlSlug.UrlSlugNodeID)
+                                .FirstOrDefault().NodeAliasPath;
+                            Conflicts.Add($"Conflict on UrlSlug {UrlSlug.UrlSlug} between NodeID {NodeID} [{MainNodePath}] and {MatchingUrlSlug.UrlSlugNodeID} [{MatchNodePath}]");
+                        }
+                    }
+                }
+            }
+
+            // Now Call save children on children if they are built.
+            foreach (NodeItem Child in Children)
+            {
+                if (Child.ConflictsExist())
+                {
+                    Conflicts.AddRange(Child.GetConflictItems());
+                }
+            }
+            return Conflicts;
+        }
+
         /// <summary>
         /// Checks if any children have Conflicts that would cause a UrlSlug to match two separate nodes
         /// </summary>
@@ -340,6 +384,43 @@ namespace DynamicRouting
                     }
                     if (UrlSlug.IsNewOrUpdated)
                     {
+                        // Check for existing Url Slug that matches the new Url
+                        var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                            .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
+                            .WhereNotEquals("UrlSlugNodeID", NodeID)
+                            .FirstOrDefault();
+                        if (MatchingUrlSlug != null)
+                        {
+                            if (DynamicRouteInternalHelper.AppendPostFixOnConflict())
+                            {
+                                bool ExistingFound = true;
+                                int AppendCount = 0;
+                                // Loop till no match found
+                                while (ExistingFound)
+                                {
+                                    string PreviousAppendex = $"-({AppendCount})";
+                                    AppendCount++;
+                                    string NewAppendex = $"-({AppendCount})";
+                                    if (UrlSlug.UrlSlug.Contains(PreviousAppendex))
+                                    {
+                                        UrlSlug.UrlSlug = UrlSlug.UrlSlug.Replace(PreviousAppendex, NewAppendex);
+                                    }
+                                    else
+                                    {
+                                        UrlSlug.UrlSlug += NewAppendex;
+                                    }
+                                    ExistingFound = UrlSlugInfoProvider.GetUrlSlugs()
+                                        .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
+                                        .WhereNotEquals("UrlSlugNodeID", NodeID)
+                                        .FirstOrDefault() != null;
+                                }
+                            }
+                            else { 
+                                // Technically should never hit this as the action should have either been cancelled or logged with an error
+                                throw new Exception("Conflict Found on Save and Url Slug Conflict Behavior Setting is not 'Append Post Fix' so could not complete action.");
+                            }
+                        }
+
                         if (ValidationHelper.GetGuid(UrlSlug.ExistingNodeSlugGuid, Guid.Empty) != Guid.Empty)
                         {
                             // Now Update the Url Slug if it's not custom
@@ -352,39 +433,14 @@ namespace DynamicRouting
                         }
                         else
                         {
-                            // Check for existing Url Slug that matches the new Url
-                            var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
-                                .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
-                                .WhereNotEquals("UrlSlugNodeID", NodeID)
-                                .FirstOrDefault();
-                            if (MatchingUrlSlug != null)
+                            var newSlug = new UrlSlugInfo()
                             {
-                                if (Settings.LogConflicts)
-                                {
-                                    var CurDoc = DocumentHelper.GetDocument(NodeID, UrlSlug.CultureCode, new TreeProvider());
-                                    var ExistingSlugDoc = DocumentHelper.GetDocument(MatchingUrlSlug.UrlSlugNodeID, MatchingUrlSlug.UrlSlugCultureCode, new TreeProvider());
-
-                                    // Log Conflict
-                                    EventLogProvider.LogEvent("W", "DynamicRouting", "UrlSlugConflict", eventDescription: string.Format("Cannot create a new Url Slug {0} for Document {1} [{2}] because it exists already for {3} [{4}]",
-                                        UrlSlug.UrlSlug,
-                                        CurDoc.NodeAliasPath,
-                                        CurDoc.DocumentCulture,
-                                        ExistingSlugDoc.NodeAliasPath,
-                                        ExistingSlugDoc.DocumentCulture
-                                        ));
-                                }
-                            }
-                            else
-                            {
-                                var newSlug = new UrlSlugInfo()
-                                {
-                                    UrlSlug = UrlSlug.UrlSlug,
-                                    UrlSlugNodeID = NodeID,
-                                    UrlSlugCultureCode = UrlSlug.CultureCode,
-                                    UrlSlugIsCustom = false
-                                };
-                                UrlSlugInfoProvider.SetUrlSlugInfo(newSlug);
-                            }
+                                UrlSlug = UrlSlug.UrlSlug,
+                                UrlSlugNodeID = NodeID,
+                                UrlSlugCultureCode = UrlSlug.CultureCode,
+                                UrlSlugIsCustom = false
+                            };
+                            UrlSlugInfoProvider.SetUrlSlugInfo(newSlug);
                         }
                     }
                 }

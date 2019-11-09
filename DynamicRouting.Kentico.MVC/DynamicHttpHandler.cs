@@ -52,6 +52,15 @@ namespace DynamicRouting.Kentico.MVC
                 ? RequestContext.RouteData.Values["action"].ToString()
                 : "";
 
+            if(string.IsNullOrWhiteSpace(defaultController))
+            {
+                defaultController = "DynamicRoute";
+            }
+            if(string.IsNullOrWhiteSpace(defaultAction))
+            {
+                defaultAction = "RouteValuesNotFound";
+            }
+
             if (node is null)
             {
                 return new DynamicRouteConfiguration(defaultController, defaultAction, null, null, DynamicRouteType.Controller);

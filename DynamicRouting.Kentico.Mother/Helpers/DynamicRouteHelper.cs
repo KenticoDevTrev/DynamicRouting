@@ -42,7 +42,7 @@ namespace DynamicRouting.Kentico
             {
                 PreviewEnabled = PortalContext.ViewMode != ViewModeEnum.LiveSite;
             }
-            catch (InvalidOperationException ex) { }
+            catch (InvalidOperationException ) { }
 
             GetCultureEventArgs CultureArgs = new GetCultureEventArgs()
             {
@@ -61,7 +61,7 @@ namespace DynamicRouting.Kentico
                         CultureArgs.Culture = LocalizationContext.CurrentCulture.CultureCode;
                     }
                 }
-                catch (InvalidOperationException ex) { }
+                catch (InvalidOperationException ) { }
 
                 // If culture not set, use the CultureInfo.CurrentCulture property of System.Globalization
                 if (string.IsNullOrWhiteSpace(Culture))
