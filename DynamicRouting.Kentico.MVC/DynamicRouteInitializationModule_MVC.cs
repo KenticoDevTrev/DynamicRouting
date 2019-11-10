@@ -21,10 +21,6 @@ namespace DynamicRouting.Kentico.MVC
         protected override void OnInit()
         {
             base.OnInit();
-
-            // Call OnInit of the Base
-            var BaseInitializationModule = new DynamicRouteInitializationModule_Base();
-            BaseInitializationModule.Init();
         }
     }
 }

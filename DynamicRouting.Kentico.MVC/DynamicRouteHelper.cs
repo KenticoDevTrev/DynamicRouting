@@ -3,8 +3,8 @@ using CMS.DataEngine;
 using CMS.DocumentEngine;
 using CMS.Helpers;
 using CMS.SiteProvider;
-using DynamicRouting.Helpers;
 using DynamicRouting.Kentico.MVC;
+using DynamicRouting.Kentico.MVCOnly.Helpers;
 using Kentico.Content.Web.Mvc;
 using Kentico.Web.Mvc;
 using System;
@@ -19,13 +19,12 @@ namespace DynamicRouting
     public static class DynamicRouteHelper
     {
         /// <summary>
-        /// Gets the CMS Page using Dynamic Routing, returning the culture variation that either matches the given culture or the Slug's culture, or the default site culture if not found.
-        /// </summary>
+        /// Gets the CMS Page, returning the culture variation that either matches the given culture or the Url's culture, or the default site culture if not found.  You can use the DynamicRoutingEvents to hook in and apply your logic.        /// </summary>
         /// <param name="Url">The Url (part after the domain), if empty will use the Current Request</param>
         /// <param name="Culture">The Culture, not needed if the Url contains the culture that the UrlSlug has as part of it's generation.</param>
         /// <param name="SiteName">The Site Name, defaults to current site.</param>
         /// <param name="Columns">List of columns you wish to include in the data returned.</param>
-        /// <returns>The Page that matches the Url Slug, for the given or matching culture (or default culture if one isn't found).</returns>
+        /// <returns>The Page that matches the Url, for the given or matching culture (or default culture if one isn't found).</returns>
         public static ITreeNode GetPage(string Url = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null)
         {
             // Load defaults
@@ -94,79 +93,7 @@ namespace DynamicRouting
             TreeNode FoundPage = null;
             using (var DynamicRoutingGetPageTaskHandler = DynamicRoutingEvents.GetPage.StartEvent(Args))
             {
-                if (Args.FoundPage == null)
-                {
-                    try
-                    {
-                        Args.FoundPage = CacheHelper.Cache<TreeNode>(cs =>
-                        {
-                        // Using custom query as Kentico's API was not properly handling a Join and where.
-                        DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
-                            {
-                    {"@Url", Url },
-                    {"@Culture", Culture },
-                    {"@DefaultCulture", DefaultCulture },
-                    {"@SiteName", SiteName }
-                            }, topN: 1, columns: "DocumentID, ClassName").Tables[0];
-                            if (NodeTable.Rows.Count > 0)
-                            {
-                                int DocumentID = ValidationHelper.GetInteger(NodeTable.Rows[0]["DocumentID"], 0);
-                                string ClassName = ValidationHelper.GetString(NodeTable.Rows[0]["ClassName"], "");
-
-                                DocumentQuery Query = DocumentHelper.GetDocuments(ClassName)
-                                        .WhereEquals("DocumentID", DocumentID)
-                                        .CombineWithAnyCulture();
-
-                            // Handle Columns
-                            if (!string.IsNullOrWhiteSpace(ColumnsVal))
-                                {
-                                    Query.Columns(ColumnsVal);
-                                }
-
-                            // Handle Preview
-                            if (PreviewEnabled)
-                                {
-                                    Query.LatestVersion(true)
-                                      .Published(false);
-                                }
-                                else
-                                {
-                                    Query.PublishedVersion(true);
-                                }
-
-                                TreeNode Page = Query.FirstOrDefault();
-
-                            // Cache dependencies on the Url Slugs and also the DocumentID if available.
-                            if (cs.Cached)
-                                {
-                                    if (Page != null)
-                                    {
-                                    cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
-                            "dynamicrouting.urlslug|all",
-                            "documentid|" + Page.DocumentID,  });
-                                    }
-                                    else
-                                    {
-                                        cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "dynamicrouting.urlslug|all" });
-                                    }
-
-                                }
-
-                            // Return Page Data
-                            return Query.FirstOrDefault();
-                            }
-                            else
-                            {
-                                return null;
-                            }
-                        }, new CacheSettings((PreviewEnabled ? 0 : 1440), "DynamicRoutine.GetPage", Url, Culture, DefaultCulture, SiteName, PreviewEnabled, ColumnsVal));
-                    }
-                    catch (Exception ex)
-                    {
-                        // Add exception so they can handle
-                        DynamicRoutingGetPageTaskHandler.EventArguments.ExceptionOnLookup = ex;
-                    }
-                }
+                // Use the Event Hooks to apply the logic for your site to determine the Page
 
                 // Finish event, this will trigger the After
                 DynamicRoutingGetPageTaskHandler.FinishEvent();
@@ -178,71 +105,92 @@ namespace DynamicRouting
         }
 
         /// <summary>
-        /// Gets the CMS Page using Dynamic Routing, returning the culture variation that either matches the given culture or the Slug's culture, or the default site culture if not found.
+        /// Gets the CMS Page, returning the culture variation that either matches the given culture or the Url's culture, or the default site culture if not found.  You can use the DynamicRoutingEvents to hook in and apply your logic.
         /// </summary>
         /// <param name="Url">The Url (part after the domain), if empty will use the Current Request</param>
         /// <param name="Culture">The Culture, not needed if the Url contains the culture that the UrlSlug has as part of it's generation.</param>
         /// <param name="SiteName">The Site Name, defaults to current site.</param>
         /// <param name="Columns">List of columns you wish to include in the data returned.</param>
-        /// <returns>The Page that matches the Url Slug, for the given or matching culture (or default culture if one isn't found).</returns>
+        /// <returns>The Page that matches the Url, for the given or matching culture (or default culture if one isn't found).</returns>
         public static T GetPage<T>(string Url = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null) where T : ITreeNode
         {
             return (T)GetPage(Url, Culture, SiteName, Columns);
         }
 
         /// <summary>
-        /// Gets the Page's Url Slug based on the given DocumentID and it's Culture.
+        /// Gets the Page's Url based on the given DocumentID and it's Culture.
         /// </summary>
         /// <param name="DocumentID">The Document ID</param>
-        /// <returns></returns>
+        /// <returns>The Url (with ~ prepended) or Null if page not found.</returns>
         public static string GetPageUrl(int DocumentID)
         {
-            return DynamicRouteInternalHelper.GetPageUrl(DocumentID);
+            return "~"+DocumentHelper.GetDocument(DocumentID, new TreeProvider()).RelativeURL.Trim('~');
         }
 
         /// <summary>
-        /// Gets the Page's Url Slug based on the given DocumentGuid and it's Culture.
+        /// Gets the Page's Url based on the given DocumentGuid and it's Culture.
         /// </summary>
         /// <param name="DocumentGuid">The Document Guid</param>
-        /// <returns>The UrlSlug (with ~ prepended) or Null if page not found.</returns>
+        /// <returns>The Url (with ~ prepended) or Null if page not found.</returns>
         public static string GetPageUrl(Guid DocumentGuid)
         {
-            return DynamicRouteInternalHelper.GetPageUrl(DocumentGuid);
+            return "~" + DocumentHelper.GetDocuments().WhereEquals("DocumentGuid", DocumentGuid).FirstOrDefault().RelativeURL.Trim('~');
         }
 
         /// <summary>
-        /// Gets the Page's Url Slug based on the given NodeAliasPath, Culture and SiteName.  If Culture not found, then will prioritize the Site's Default Culture, then Cultures by alphabetical order.
+        /// Gets the Page's Url based on the given NodeAliasPath, Culture and SiteName.  If Culture not found, then will prioritize the Site's Default Culture, then Cultures by alphabetical order.
         /// </summary>
         /// <param name="NodeAliasPath">The Node alias path you wish to select</param>
         /// <param name="DocumentCulture">The Document Culture, if not provided will use default Site's Culture.</param>
         /// <param name="SiteName">The Site Name, if not provided then the Current Site's name is used.</param>
-        /// <returns>The UrlSlug (with ~ prepended) or Null if page not found.</returns>
+        /// <returns>The Url (with ~ prepended) or Null if page not found.</returns>
         public static string GetPageUrl(string NodeAliasPath, string DocumentCulture = null, string SiteName = null)
         {
-            return DynamicRouteInternalHelper.GetPageUrl(NodeAliasPath, DocumentCulture, SiteName);
+            var SelectionParams = new NodeSelectionParameters()
+            {
+                AliasPath = NodeAliasPath,
+                CombineWithDefaultCulture = true
+            };
+            if(!string.IsNullOrWhiteSpace(DocumentCulture))
+            {
+                SelectionParams.CultureCode = DocumentCulture;
+            }
+            if (!string.IsNullOrWhiteSpace(SiteName))
+            {
+                SelectionParams.SiteName = SiteName;
+            }
+            return "~" + DocumentHelper.GetDocument(SelectionParams, new TreeProvider()).RelativeURL.Trim('~');
         }
 
         /// <summary>
-        /// Gets the Page's Url Slug based on the given NodeGuid and Culture.  If Culture not found, then will prioritize the Site's Default Culture, then Cultures by alphabetical order.
+        /// Gets the Page's Url based on the given NodeGuid and Culture.  If Culture not found, then will prioritize the Site's Default Culture, then Cultures by alphabetical order.
         /// </summary>
         /// <param name="NodeGuid">The Node to find the Url Slug</param>
         /// <param name="DocumentCulture">The Document Culture, if not provided will use default Site's Culture.</param>
-        /// <returns>The UrlSlug (with ~ prepended) or Null if page not found.</returns>
+        /// <returns>The Url (with ~ prepended) or Null if page not found.</returns>
         public static string GetPageUrl(Guid NodeGuid, string DocumentCulture = null)
         {
-            return DynamicRouteInternalHelper.GetPageUrl(NodeGuid, DocumentCulture);
+            var DocQuery = DocumentHelper.GetDocuments()
+                .WhereEquals("NodeGuid", NodeGuid)
+                .CombineWithAnyCulture()
+                .CombineWithDefaultCulture();
+            if(!string.IsNullOrWhiteSpace(DocumentCulture))
+            {
+                DocQuery.Culture(DocumentCulture);
+            }
+            return "~" + DocQuery.FirstOrDefault().RelativeURL.Trim('~');
         }
 
         /// <summary>
-        /// Gets the Page's Url Slug based on the given NodeID and Culture.  If Culture not found, then will prioritize the Site's Default Culture, then Cultures by alphabetical order.
+        /// Gets the Page's Url based on the given NodeID and Culture.  If Culture not found, then will prioritize the Site's Default Culture, then Cultures by alphabetical order.
         /// </summary>
         /// <param name="NodeID">The NodeID</param>
         /// <param name="DocumentCulture">The Document Culture, if not provided will use default Site's Culture.</param>
         /// <param name="SiteName">The Site Name, if not provided then will query the NodeID to find it's site.</param>
-        /// <returns>The UrlSlug (with ~ prepended) or Null if page not found.</returns>
+        /// <returns>The Url (with ~ prepended) or Null if page not found.</returns>
         public static string GetPageUrl(int NodeID, string DocumentCulture = null, string SiteName = null)
         {
-            return DynamicRouteInternalHelper.GetPageUrl(NodeID, DocumentCulture, SiteName);
+            return "~" + DocumentHelper.GetDocument(NodeID, DocumentCulture, new TreeProvider()).RelativeURL.Trim('~');
         }
 
         /// <summary>

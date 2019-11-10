@@ -1,13 +1,10 @@
 ﻿using CMS.Base;
+using CMS.Helpers;
 using CMS.SiteProvider;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Web;
 
-namespace DynamicRouting.Helpers
+namespace DynamicRouting.Kentico.MVCOnly.Helpers
 {
     public class EnvironmentHelper
     {
@@ -59,7 +56,45 @@ namespace DynamicRouting.Helpers
                 RelativeUrl = RelativeUrl.Substring(ApplicationPath.Length);
             }
             
-            return DynamicRouteInternalHelper.GetCleanUrl(RelativeUrl, SiteName);
+            return GetCleanUrl(RelativeUrl, SiteName);
+        }
+
+        public static string GetCleanUrl(string Url, string SiteName = "")
+        {
+            // Remove trailing or double //'s and any url parameters / anchors
+            Url = "/" + Url.Trim("/ ".ToCharArray()).Split('?')[0].Split('#')[0];
+            Url = HttpUtility.UrlDecode(Url);
+
+            // Replace forbidden characters
+            // Remove / from the forbidden characters because that is part of the Url, of course.
+            if (string.IsNullOrWhiteSpace(SiteName) && !string.IsNullOrWhiteSpace(SiteContext.CurrentSiteName))
+            {
+                SiteName = SiteContext.CurrentSiteName;
+            }
+            if (!string.IsNullOrWhiteSpace(SiteName))
+            {
+                string ForbiddenCharacters = URLHelper.ForbiddenURLCharacters(SiteName).Replace("/", "");
+                string Replacement = URLHelper.ForbiddenCharactersReplacement(SiteName).ToString();
+                Url = ReplaceAnyCharInString(Url, ForbiddenCharacters.ToCharArray(), Replacement);
+            }
+
+            // Escape special url characters
+            Url = URLHelper.EscapeSpecialCharacters(Url);
+
+            return Url;
+        }
+
+        /// <summary>
+        /// Replaces any char in the char array with the replace value for the string
+        /// </summary>
+        /// <param name="value">The string to replace values in</param>
+        /// <param name="CharsToReplace">The character array of characters to replace</param>
+        /// <param name="ReplaceValue">The value to replace them with</param>
+        /// <returns></returns>
+        private static string ReplaceAnyCharInString(string value, char[] CharsToReplace, string ReplaceValue)
+        {
+            string[] temp = value.Split(CharsToReplace, StringSplitOptions.RemoveEmptyEntries);
+            return String.Join(ReplaceValue, temp);
         }
 
     }
