@@ -33,16 +33,6 @@ namespace CMSApp.CMSModules.DynamicRouting
             }
         }
 
-        protected void btnRunQueue_Click(object sender, EventArgs e)
-        {
-            DynamicRouteInternalHelper.CheckUrlSlugGenerationQueue();
-        }
-
-        protected void btnRunVersionHistoryQueue_Click(object sender, EventArgs e)
-        {
-            DynamicRouteInternalHelper.CheckVersionHistoryGenerationQueue();
-        }
-
         protected void btnCheckUrl_Click(object sender, EventArgs e)
         {
             ITreeNode Node = DynamicRouteHelper.GetPage(tbxRouteToTest.Text);

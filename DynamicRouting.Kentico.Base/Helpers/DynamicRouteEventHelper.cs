@@ -62,6 +62,15 @@
         }
 
         /// <summary>
+        /// Build ParentNode, and Parent's immediate children, build the children and update recursively only if changes detected.
+        /// </summary>
+        /// <param name="NodeID"></param>
+        public static void DocumentInsertUpdated_CheckOnly(int NodeID)
+        {
+            DynamicRouteInternalHelper.RebuildRoutesByNode_CheckOnly(NodeID);
+        }
+
+        /// <summary>
         /// Build Node (and upward), and build the children and update recursively only if changes detected.
         /// </summary>
         /// <param name="UrlSlugID"></param>

@@ -8,6 +8,7 @@ using CMS.MacroEngine;
 using CMS.SiteProvider;
 using CMS.WorkflowEngine;
 using DynamicRouting.Kentico;
+using DynamicRouting.Kentico.Classes;
 using System;
 using System.Data;
 using System.IO;
@@ -70,13 +71,6 @@ namespace DynamicRouting.Kentico
             // Handle if IsCustom was true and is now false to re-build the slug
             UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before_IsCustomRebuild;
             UrlSlugInfo.TYPEINFO.Events.Update.After += UrlSlug_Update_After_IsCustomRebuild;
-
-            // Attach to Workflow History events to generate Workflow History Url Slugs
-            VersionHistoryInfo.TYPEINFO.Events.Insert.After += VersionHistory_InsertUpdate_After;
-            VersionHistoryInfo.TYPEINFO.Events.Update.After += VersionHistory_InsertUpdate_After;
-
-            // Trigger Custom Cache Key for GetPage Logic
-            VersionHistoryUrlSlugInfo.TYPEINFO.Events.Insert.After += VersionHistoryUrlSlug_InsertUpdate_After;
         }
 
         private void UrlSlug_Update_After_IsCustomRebuild(object sender, ObjectEventArgs e)
@@ -93,7 +87,9 @@ namespace DynamicRouting.Kentico
         private void UrlSlug_Update_Before_IsCustomRebuild(object sender, ObjectEventArgs e)
         {
             UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
-            if (!UrlSlug.UrlSlugIsCustom && ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), UrlSlug.UrlSlugIsCustom))
+
+            // If the Url Slug is custom or was custom, then need to rebuild after.
+            if (UrlSlug.UrlSlugIsCustom || ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), UrlSlug.UrlSlugIsCustom))
             {
                 // Add hook so the Url Slug will be re-rendered after it's updated
                 RecursionControl Trigger = new RecursionControl("UrlSlugNoLongerCustom_" + UrlSlug.UrlSlugGuid);
@@ -102,40 +98,12 @@ namespace DynamicRouting.Kentico
         }
 
 
-        private void VersionHistoryUrlSlug_InsertUpdate_After(object sender, ObjectEventArgs e)
-        {
-            VersionHistoryUrlSlugInfo VersionHistoryUrlSlug = (VersionHistoryUrlSlugInfo)e.Object;
-            // Get Version History
-            int DocumentID = CacheHelper.Cache(cs =>
-            {
-                VersionHistoryInfo VersionHistory = VersionHistoryInfoProvider.GetVersionHistoryInfo(VersionHistoryUrlSlug.VersionHistoryUrlSlugVersionHistoryID);
-                if (VersionHistory != null)
-                {
-                    cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "cms.versionhistory|byid|" + VersionHistory.VersionHistoryID });
-                }
-                else
-                {
-                    cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "cms.versionhistory|all" });
-                }
-                return (VersionHistory != null ? VersionHistory.DocumentID : 0);
-            }, new CacheSettings(1440, "DocumentIDByVersionHistoryID", VersionHistoryUrlSlug.VersionHistoryUrlSlugVersionHistoryID));
-
-            // Touch key to clear version history for this DocumentID
-            CacheHelper.TouchKey("dynamicrouting.versionhistoryurlslug|bydocumentid|" + DocumentID);
-        }
-
         private void Document_Publish_After(object sender, WorkflowEventArgs e)
         {
             // Update the document itself
             DynamicRouteEventHelper.DocumentInsertUpdated(e.Document.NodeID);
         }
 
-        private void VersionHistory_InsertUpdate_After(object sender, ObjectEventArgs e)
-        {
-            VersionHistoryInfo VersionHistory = (VersionHistoryInfo)e.Object;
-            var Class = DynamicRouteInternalHelper.GetClass(VersionHistory.VersionClassID);
-            DynamicRouteInternalHelper.SetOrUpdateVersionHistory(VersionHistory, Class.ClassName, Class.ClassURLPattern);
-        }
 
         private void UrlSlug_Update_Before_301Redirect(object sender, ObjectEventArgs e)
         {
@@ -155,6 +123,10 @@ namespace DynamicRouting.Kentico
             var AlternativeUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
                 .WhereEquals("AlternativeUrlUrl", OriginalUrlSlug)
                 .FirstOrDefault();
+
+            SiteInfo Site = SiteInfoProvider.GetSiteInfo(Document.NodeSiteID);
+            string DefaultCulture = SettingsKeyInfoProvider.GetValue("CMSDefaultCultureCode", new SiteInfoIdentifier(Site.SiteName));
+
             if (AlternativeUrl != null)
             {
                 if (AlternativeUrl.AlternativeUrlDocumentID != Document.DocumentID)
@@ -176,9 +148,31 @@ namespace DynamicRouting.Kentico
                     }
                     TreeNode DefaultLanguage = DocumentHelper.GetDocuments()
                         .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                        .Culture(DefaultCulture)
                         .CombineWithDefaultCulture()
                         .FirstOrDefault();
-                    if (DefaultLanguage != null && AlternativeUrl.AlternativeUrlDocumentID != DefaultLanguage.DocumentID)
+
+                    // Save only if there is no default language, or it is the default language, or if there is a default language adn it isn't it, that the Url doesn't match
+                    // Any of the default languages urls, as this often happens when you clone from an existing language and then save a new url.
+                    bool DefaultLanguageExists = DefaultLanguage != null;
+                    bool IsNotDefaultLanguage = DefaultLanguageExists && AlternativeUrl.AlternativeUrlDocumentID != DefaultLanguage.DocumentID;
+                    bool MatchesDefaultLang = false;
+                    if(DefaultLanguageExists && IsNotDefaultLanguage)
+                    {
+                        // See if the OriginalUrlSlug matches the default document, or one of it's alternates
+                        var DefaultLangUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                            .WhereEquals("UrlSlugNodeID", UrlSlug.UrlSlugNodeID)
+                            .WhereEquals("UrlSlugCultureCode", DefaultLanguage.DocumentCulture)
+                            .WhereEquals("UrlSlug", "/"+OriginalUrlSlug)
+                            .FirstOrDefault();
+                        var DefaultLangAltUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
+                            .WhereEquals("AlternativeUrlDocumentID", DefaultLanguage.DocumentID)
+                            .WhereEquals("AlternativeUrlUrl", OriginalUrlSlug)
+                            .FirstOrDefault();
+                        MatchesDefaultLang = DefaultLangUrlSlug != null || DefaultLangAltUrl != null;
+                    }
+
+                    if (!DefaultLanguageExists || !IsNotDefaultLanguage || (DefaultLanguageExists && IsNotDefaultLanguage && !MatchesDefaultLang))
                     {
                         AlternativeUrl.AlternativeUrlDocumentID = DefaultLanguage.DocumentID;
                         AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
@@ -194,22 +188,57 @@ namespace DynamicRouting.Kentico
                     AlternativeUrlSiteID = Document.NodeSiteID,
                 };
                 AlternativeUrl.SetValue("AlternativeUrlUrl", OriginalUrlSlug);
-                try
+
+                // Save only if there is no default language, or it is the default language, or if there is a default language adn it isn't it, that the Url doesn't match
+                // Any of the default languages urls, as this often happens when you clone from an existing language and then save a new url.
+                TreeNode DefaultLanguage = DocumentHelper.GetDocuments()
+                        .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                        .Culture(DefaultCulture)
+                        .FirstOrDefault();
+                bool DefaultLanguageExists = DefaultLanguage != null;
+                bool IsNotDefaultLanguage = DefaultLanguageExists && AlternativeUrl.AlternativeUrlDocumentID != DefaultLanguage.DocumentID;
+                bool MatchesDefaultLang = false;
+                if (DefaultLanguageExists && IsNotDefaultLanguage)
                 {
-                    AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
-                } catch(InvalidAlternativeUrlException ex)
+                    // See if the OriginalUrlSlug matches the default document, or one of it's alternates
+                    var DefaultLangUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                        .WhereEquals("UrlSlugNodeID", UrlSlug.UrlSlugNodeID)
+                        .WhereEquals("UrlSlugCultureCode", DefaultLanguage.DocumentCulture)
+                        .WhereEquals("UrlSlug", "/" + OriginalUrlSlug)
+                        .FirstOrDefault();
+                    var DefaultLangAltUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
+                        .WhereEquals("AlternativeUrlDocumentID", DefaultLanguage.DocumentID)
+                        .WhereEquals("AlternativeUrlUrl", OriginalUrlSlug)
+                        .FirstOrDefault();
+                    MatchesDefaultLang = DefaultLangUrlSlug != null || DefaultLangAltUrl != null;
+                }
+                if (!DefaultLanguageExists || !IsNotDefaultLanguage || (DefaultLanguageExists && IsNotDefaultLanguage && !MatchesDefaultLang))
                 {
-                    // Figure out what to do, it does'nt match the pattern constraints.
+                    try
+                    {
+                        AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                    }
+                    catch (InvalidAlternativeUrlException ex)
+                    {
+                        // Figure out what to do, it doesn't match the pattern constraints.
+                    }
                 }
             }
         }
 
         private void Document_Update_After(object sender, DocumentEventArgs e)
         {
-            // Update the document itself, only if there is no workflow or it is a published step
-            if (e.Node.WorkflowStep == null || e.Node.WorkflowStep.StepIsPublished)
+            // Update the document itself, only if there is no workflow
+            if (e.Node.WorkflowStep == null)
             {
                 DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            }
+            else
+            {
+                if (e.Node.WorkflowStep.StepIsPublished && DynamicRouteInternalHelper.ErrorOnConflict())
+                {
+                    DynamicRouteEventHelper.DocumentInsertUpdated_CheckOnly(e.Node.NodeID);
+                }
             }
         }
 

@@ -453,10 +453,6 @@
     <Compile Include="Classes\Base\SlugGenerationQueueInfoProvider.cs" />
     <Compile Include="Classes\Base\UrlSlugInfo.cs" />
     <Compile Include="Classes\Base\UrlSlugInfoProvider.cs" />
-    <Compile Include="Classes\Base\VersionHistoryGenerationQueueInfo.cs" />
-    <Compile Include="Classes\Base\VersionHistoryGenerationQueueInfoProvider.cs" />
-    <Compile Include="Classes\Base\VersionHistoryUrlSlugInfo.cs" />
-    <Compile Include="Classes\Base\VersionHistoryUrlSlugInfoProvider.cs" />
     <Compile Include="Classes\Models\NodeData.cs" />
     <Compile Include="Classes\Models\NodeItemBuilderSetting.cs" />
     <Compile Include="Classes\Models\NodeUrlSlug.cs" />

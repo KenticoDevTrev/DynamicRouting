@@ -6,19 +6,14 @@ using CMS.Helpers;
 using CMS.Localization;
 using CMS.MacroEngine;
 using CMS.SiteProvider;
-using DynamicRouting.Helpers;
 using DynamicRouting.Kentico.Classes;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Web;
 using System.Xml.Serialization;
 
@@ -159,62 +154,6 @@ namespace DynamicRouting
                     .WhereIn("NodeClassID", ClassIDs)
                     .Columns("NodeID")
                     .Count > 0;
-            }
-        }
-
-        /// <summary>
-        /// Takes the Version History item and creates or updates the Version History Url Slug
-        /// </summary>
-        /// <param name="VersionHistory">The Version History object</param>
-        /// <param name="ClassName">The Class Name</param>
-        /// <param name="classURLPattern">The Class URL Pattern</param>
-        public static void SetOrUpdateVersionHistory(VersionHistoryInfo VersionHistory, string ClassName, string classURLPattern)
-        {
-            string Pattern = Regex.Replace(classURLPattern, "ParentUrl\\(\\)", "ParentUrl", RegexOptions.IgnoreCase);
-
-            if (string.IsNullOrWhiteSpace(VersionHistory.NodeXML))
-            {
-                // No Data on Node, probably a delete history
-                return;
-            }
-
-            // Get versioned document by converting the NodeXML into a DataSet and grabbing the first table's row
-            DataSet NodeXmlData = new DataSet();
-            NodeXmlData.ReadXml(new StringReader(VersionHistory.NodeXML));
-            if (DataHelper.DataSourceIsEmpty(NodeXmlData) || NodeXmlData.Tables.Count == 0 || NodeXmlData.Tables[0].Rows.Count == 0)
-            {
-                EventLogProvider.LogEvent("E", "DynamicRouting", "VersionHistoryUrlSlugError", eventDescription: $"Could not generate Version History Url Slug since the Verison History NodeXML was empty for Version History {VersionHistory.VersionHistoryID}");
-                return;
-            }
-            TreeNode Document = null;
-            
-            Document = TreeNode.New(ClassName, NodeXmlData.Tables[0].Rows[0]);
-
-            // Create Macro Resolver
-            MacroResolver DocResolver = MacroResolver.GetInstance();
-            SiteInfo Site = DynamicRouteInternalHelper.GetSite(Document.NodeSiteID);
-            DocResolver.SetAnonymousSourceData(new object[] { Site });
-            DocResolver.SetAnonymousSourceData(new object[] { DynamicRouteInternalHelper.GetCulture(Document.DocumentCulture) });
-            DocResolver.SetAnonymousSourceData(new object[] { Document });
-            // Replace "ParentUrl()" with "ParentUrl", then replace that with |ParentUrl| as we will use SQL to escape dynamically replace this with the production parent slug as this can change
-            DocResolver.SetHiddenNamedSourceData("ParentUrl", "ParentUrl");
-
-            string Url = DynamicRouteInternalHelper.GetCleanUrl(DocResolver.ResolveMacros(Pattern), Site.SiteName);
-            Url = Regex.Replace(Url, "/ParentUrl", "|ParentUrl|", RegexOptions.IgnoreCase);
-
-            // Get current and update, or create if empty
-            VersionHistoryUrlSlugInfo VersionHistoryUrlSlug = DynamicRouteInternalHelper.GetVersionHistoryUrlSlugByVersionHistoryID(VersionHistory.VersionHistoryID);
-            if (VersionHistoryUrlSlug == null)
-            {
-                VersionHistoryUrlSlug = new VersionHistoryUrlSlugInfo()
-                {
-                    VersionHistoryUrlSlugVersionHistoryID = VersionHistory.VersionHistoryID
-                };
-            }
-            if (VersionHistoryUrlSlug.VersionHistoryUrlSlug != Url)
-            {
-                VersionHistoryUrlSlug.VersionHistoryUrlSlug = Url;
-                VersionHistoryUrlSlugInfoProvider.SetVersionHistoryUrlSlugInfo(VersionHistoryUrlSlug);
             }
         }
 
@@ -397,6 +336,8 @@ namespace DynamicRouting
             }
             else
             {
+                // Save itself and then queue up rest
+                RootNodeItem.SaveChanges(false);
                 // Do rest asyncly.
                 QueueUpUrlSlugGeneration(RootNodeItem, BuilderSettings.CheckQueueImmediately);
             }
@@ -456,9 +397,6 @@ namespace DynamicRouting
 
                 // Now check queue to run tasks
                 CheckUrlSlugGenerationQueue();
-
-                // Lastly, update all the VersionUrlSlugs for documents of this class.
-                QueueUpVersionHistoryGeneration(Class.ClassID, Class.ClassURLPattern);
             }
         }
 
@@ -469,6 +407,15 @@ namespace DynamicRouting
         public static void RebuildRoutesByNode(int NodeID)
         {
             RebuildRoutesByNode(NodeID, null);
+        }
+
+        /// <summary>
+        /// Rebuilds the routes for the given Node
+        /// </summary>
+        /// <param name="NodeID">The NodeID</param>
+        public static void RebuildRoutesByNode_CheckOnly(int NodeID)
+        {
+            RebuildRoutesByNode(NodeID, null, true);
         }
 
         /// <summary>
@@ -500,7 +447,7 @@ namespace DynamicRouting
         /// </summary>
         /// <param name="NodeID">The NodeID</param>
         /// <param name="Settings">The Node Item Build Settings, if null will create settings based on the Node itself.</param>
-        private static void RebuildRoutesByNode(int NodeID, NodeItemBuilderSettings Settings = null)
+        private static void RebuildRoutesByNode(int NodeID, NodeItemBuilderSettings Settings = null, bool CheckConflictOnly = false)
         {
             // If settings are not set, then get settings based on the given Node
             string NodeAliasPath = "";
@@ -518,21 +465,29 @@ namespace DynamicRouting
             }
 
             // Build and save
-            NodeItem GivenNodeItem = new NodeItem(NodeID, Settings);
-            if (ErrorOnConflict())
+            NodeItem GivenNodeItem = new NodeItem(NodeID, Settings, CheckConflictOnly);
+            if (ErrorOnConflict() || CheckConflictOnly)
             {
                 // If error on conflict, everything MUST be done syncly.
                 GivenNodeItem.BuildChildren();
                 if (GivenNodeItem.ConflictsExist())
                 {
-                    EventLogProvider.LogEvent("E", "DynamicRouting", "Conflict Exists", eventDescription: $"Could not save document at {NodeAliasPath} due to a conflict in the generated route.");
-                    throw new UrlSlugCollisionException("Conflict Exists, aborting save");
+                    string Error = $"Could not save document at {NodeAliasPath} due to a conflict in the generated route: {string.Join("\n\r", GivenNodeItem.GetConflictItems())}";
+                    EventLogProvider.LogEvent("E", "DynamicRouting", "Conflict Exists", eventDescription: Error);
+                    throw new UrlSlugCollisionException($"{Error} aborting save");
                 }
-                // Save changes
+                // Save changes if not only checking conflict
+                if (CheckConflictOnly)
+                {
+                    return;
+                }
                 GivenNodeItem.SaveChanges();
             }
             else
             {
+                // Save main one
+                GivenNodeItem.SaveChanges(false);
+
                 // Do rest asyncly.
                 QueueUpUrlSlugGeneration(GivenNodeItem, Settings.CheckQueueImmediately);
             }
@@ -703,7 +658,7 @@ namespace DynamicRouting
             try
             {
                 QueueItem.BuildChildren();
-                if(ErrorOnConflict() && QueueItem.ConflictsExist())
+                if (ErrorOnConflict() && QueueItem.ConflictsExist())
                 {
                     ItemToRun.SlugGenerationQueueErrors = $"The Following Conflicts were found:\n\r{string.Join("\n\r", QueueItem.GetConflictItems())}\n\rPlease Correct and re-run queue item.";
                     ItemToRun.SlugGenerationQueueEnded = DateTime.Now;
@@ -712,7 +667,9 @@ namespace DynamicRouting
                     ItemToRun.SlugGenerationQueueRunning = false;
                     SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(ItemToRun);
                     return;
-                } else { 
+                }
+                else
+                {
                     QueueItem.SaveChanges();
                     // If completed successfully, delete the item
                     ItemToRun.Delete();
@@ -729,182 +686,6 @@ namespace DynamicRouting
             // Now that we are 'finished' call the Check again to processes next item.
             CheckUrlSlugGenerationQueue();
         }
-
-        /// <summary>
-        /// Adds a Version History Url Slug mass update tasks to the queue
-        /// </summary>
-        /// <param name="NodeItem">The Node Item</param>
-        private static void QueueUpVersionHistoryGeneration(int ClassID, string UrlPattern)
-        {
-            // Add item to the Slug Generation Queue
-            VersionHistoryGenerationQueueInfo NewQueue = new VersionHistoryGenerationQueueInfo()
-            {
-                VersionHistoryGenerationQueueClassID = ClassID,
-                VersionHistoryGenerationQueueUrlPattern = UrlPattern
-            };
-            VersionHistoryGenerationQueueInfoProvider.SetVersionHistoryGenerationQueueInfo(NewQueue);
-
-            // Run Queue checker
-            CheckVersionHistoryGenerationQueue();
-        }
-
-        /// <summary>
-        /// Clears the QueueRunning flag on any tasks that the thread doesn't actually exist (something happened and the thread failed or died without setting the Running to false)
-        /// </summary>
-        public static void ClearStucVersionHistoryGenerationTasks()
-        {
-            Process currentProcess = Process.GetCurrentProcess();
-
-            // Set any threads by this application that shows it's running but the Thread doesn't actually exist.
-            VersionHistoryGenerationQueueInfoProvider.GetVersionHistoryGenerationQueues()
-                .WhereEquals("VersionHistoryGenerationQueueRunning", true)
-                .WhereEquals("VersionHistoryGenerationQueueApplicationID", SystemHelper.ApplicationIdentifier)
-                .WhereNotIn("VersionHistoryGenerationQueueThreadID", currentProcess.Threads.Cast<ProcessThread>().Select(x => x.Id).ToArray())
-                .ForEachObject(x =>
-                {
-                    x.VersionHistoryGenerationQueueRunning = false;
-                    VersionHistoryGenerationQueueInfoProvider.SetVersionHistoryGenerationQueueInfo(x);
-                });
-        }
-
-        /// <summary>
-        /// Checks for Version History Url Slug Generation Queue Items and processes any asyncly.
-        /// </summary>
-        public static void CheckVersionHistoryGenerationQueue()
-        {
-            // Clear any stuck tasks
-            ClearStucVersionHistoryGenerationTasks();
-
-            DataSet NextGenerationResult = ConnectionHelper.ExecuteQuery("DynamicRouting.VersionHistoryGenerationQueue.GetNextRunnableQueueItem", new QueryDataParameters()
-            {
-                {"@ApplicationID", SystemHelper.ApplicationIdentifier }
-                ,{"@SkipErroredGenerations", SkipErroredGenerations()}
-            });
-
-            if (NextGenerationResult.Tables.Count > 0 && NextGenerationResult.Tables[0].Rows.Count > 0)
-            {
-                // Queue up task asyncly
-                CMSThread VersionHistoryGenerationThread = new CMSThread(new ThreadStart(RunVersionHistoryGenerationQueueItem), new ThreadSettings()
-                {
-                    Mode = ThreadModeEnum.Async,
-                    IsBackground = true,
-                    Priority = ThreadPriority.AboveNormal,
-                    UseEmptyContext = false,
-                    CreateLog = true
-                });
-                VersionHistoryGenerationThread.Start();
-            }
-        }
-
-        /// <summary>
-        /// Async helper method, grabs the Queue that is set to be "running" for this application and processes.
-        /// </summary>
-        private static void RunVersionHistoryGenerationQueueItem()
-        {
-            //EventLogProvider.LogInformation("DynamicRouteTesting", "AsyncBuildStart", eventDescription: DateTime.Now.ToString() + " " + DateTime.Now.Millisecond.ToString());
-            // Get the current thread ID and the item to run
-            VersionHistoryGenerationQueueInfo ItemToRun = VersionHistoryGenerationQueueInfoProvider.GetVersionHistoryGenerationQueues()
-                .WhereEquals("VersionHistoryGenerationQueueRunning", 1)
-                .WhereEquals("VersionHistoryGenerationQueueApplicationID", SystemHelper.ApplicationIdentifier)
-                .FirstOrDefault();
-            if (ItemToRun == null)
-            {
-                return;
-            }
-
-            // Update item with thread and times
-            ItemToRun.VersionHistoryGenerationQueueThreadID = Thread.CurrentThread.ManagedThreadId;
-            ItemToRun.VersionHistoryGenerationQueueStarted = DateTime.Now;
-            ItemToRun.SetValue("VersionHistoryGenerationQueueErrors", null);
-            ItemToRun.SetValue("VersionHistoryGenerationQueueEnded", null);
-            VersionHistoryGenerationQueueInfoProvider.SetVersionHistoryGenerationQueueInfo(ItemToRun);
-
-            // Get the Class, don't use cache as doesn't seem to have cleared at this point.
-            var Class = GetClass(ItemToRun.VersionHistoryGenerationQueueClassID);
-
-            // Run update
-            try
-            {
-                VersionHistoryInfoProvider.GetVersionHistories()
-                     .WhereEquals("VersionClassID", ItemToRun.VersionHistoryGenerationQueueClassID)
-                     .ForEachObject(x =>
-                     {
-                         SetOrUpdateVersionHistory(x, Class.ClassName, ItemToRun.VersionHistoryGenerationQueueUrlPattern);
-                     });
-
-                // If completed successfully, delete the item
-                ItemToRun.Delete();
-
-            }
-            catch (Exception ex)
-            {
-                ItemToRun.VersionHistoryGenerationQueueErrors = EventLogProvider.GetExceptionLogMessage(ex);
-                ItemToRun.VersionHistoryGenerationQueueRunning = false;
-                ItemToRun.VersionHistoryGenerationQueueEnded = DateTime.Now;
-                VersionHistoryGenerationQueueInfoProvider.SetVersionHistoryGenerationQueueInfo(ItemToRun);
-
-                // Commit transaction so next check will see this change
-                CommitTransaction(true);
-
-                // Now that we are 'finished' call the Check again to processes next item.
-                CheckVersionHistoryGenerationQueue();
-            }
-            
-            // Now that we are 'finished' call the Check again to processes next item.
-            CheckVersionHistoryGenerationQueue();
-        }
-
-        /// <summary>
-        /// Runs the Generation on the given Slug Generation Queue, runs regardless of whether or not any other queues are running.
-        /// </summary>
-        /// <param name="SlugGenerationQueueID"></param>
-        public static void RunVersionHistoryGenerationQueueItem(int VersionHistoryGenerationQueueID)
-        {
-            VersionHistoryGenerationQueueInfo ItemToRun = VersionHistoryGenerationQueueInfoProvider.GetVersionHistoryGenerationQueues()
-                .WhereEquals("VersionHistoryGenerationQueueID", VersionHistoryGenerationQueueID)
-                .FirstOrDefault();
-            if (ItemToRun == null)
-            {
-                return;
-            }
-
-            // Update item with thread and times
-            ItemToRun.VersionHistoryGenerationQueueThreadID = Thread.CurrentThread.ManagedThreadId;
-            ItemToRun.VersionHistoryGenerationQueueStarted = DateTime.Now;
-            ItemToRun.VersionHistoryGenerationQueueRunning = true;
-            ItemToRun.VersionHistoryGenerationQueueApplicationID = SystemHelper.ApplicationIdentifier;
-            ItemToRun.SetValue("VersionHistoryGenerationQueueErrors", null);
-            ItemToRun.SetValue("VersionHistoryGenerationQueueEnded", null);
-            VersionHistoryGenerationQueueInfoProvider.SetVersionHistoryGenerationQueueInfo(ItemToRun);
-
-            // Get the Class
-            var Class = GetClass(ItemToRun.VersionHistoryGenerationQueueClassID);
-
-            // Run update
-            try
-            {
-                VersionHistoryInfoProvider.GetVersionHistories()
-                     .WhereEquals("VersionClassID", ItemToRun.VersionHistoryGenerationQueueClassID)
-                     .ForEachObject(x =>
-                     {
-                         SetOrUpdateVersionHistory(x, Class.ClassName, ItemToRun.VersionHistoryGenerationQueueUrlPattern);
-                     });
-
-                // If completed successfully, delete the item
-                ItemToRun.Delete();
-            }
-            catch (Exception ex)
-            {
-                ItemToRun.VersionHistoryGenerationQueueErrors = EventLogProvider.GetExceptionLogMessage(ex);
-                ItemToRun.VersionHistoryGenerationQueueRunning = false;
-                ItemToRun.VersionHistoryGenerationQueueEnded = DateTime.Now;
-                VersionHistoryGenerationQueueInfoProvider.SetVersionHistoryGenerationQueueInfo(ItemToRun);
-            }
-            // Now that we are 'finished' call the Check again to processes next item.
-            CheckVersionHistoryGenerationQueue();
-        }
-
-
 
         /// <summary>
         /// Commits the current transaction so the previous item's content is in the database to be called upon, avoids null lookups on related items.
@@ -982,7 +763,7 @@ namespace DynamicRouting
         {
             return CacheHelper.Cache(cs =>
             {
-                if(cs.Cached)
+                if (cs.Cached)
                 {
                     cs.CacheDependency = CacheHelper.GetCacheDependency("cms.settingskey|byname|urlslugexcludedclasses");
                 }
@@ -1048,27 +829,7 @@ namespace DynamicRouting
             }, new CacheSettings(1440, "GetClassByID", ClassID));
         }
 
-        /// <summary>
-        /// Cached helper to get the Version History Url Slug object
-        /// </summary>
-        /// <param name="VersionHistoryID">The Version History ID of the Document</param>
-        /// <returns>The Version History Url Slug Info</returns>
-        public static VersionHistoryUrlSlugInfo GetVersionHistoryUrlSlugByVersionHistoryID(int VersionHistoryID)
-        {
-            return CacheHelper.Cache(cs =>
-            {
-                var VersionHistoryUrlSlug = VersionHistoryUrlSlugInfoProvider.GetVersionHistoryUrlSlugs().WhereEquals("VersionHistoryUrlSlugVersionHistoryID", VersionHistoryID).FirstOrDefault();
-                if (VersionHistoryUrlSlug != null)
-                {
-                    cs.CacheDependency = CacheHelper.GetCacheDependency("DynamicRouting.VersionHistoryUrlSlug|byid|" + VersionHistoryUrlSlug.VersionHistoryUrlSlugID);
-                }
-                else
-                {
-                    cs.CacheDependency = CacheHelper.GetCacheDependency("DynamicRouting.VersionHistoryUrlSlug|all");
-                }
-                return VersionHistoryUrlSlug;
-            }, new CacheSettings(0, "VersionHistoryUrlSlugByID", VersionHistoryID));
-        }
+
 
         /// <summary>
         /// Cached helper to get the CultureInfo object for the given Culture code

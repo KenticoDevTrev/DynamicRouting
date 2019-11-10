@@ -60,8 +60,9 @@ namespace DynamicRouting
         /// This constructor should be called when a Node is updated, passing the NodeID and it's parent.  This is a starting point 
         /// </summary>
         /// <param name="ParentNodeID">The Parent Node id, this will be the primary root of the NodeItem Build</param>
-        /// <param name="PageNodeID">The NodeID of the actual page modified, this item will also have it's children checked automatically</param>
-        public NodeItem(int PageNodeID, NodeItemBuilderSettings Settings)
+        /// <param name="Settings">The Node Item Builder Settings</param>
+        /// <param name="UseCurrentVersion">If the current version of the document should be used, should only be true if doing a Conflict check and not saving.</param>
+        public NodeItem(int PageNodeID, NodeItemBuilderSettings Settings, bool UseCurrentVersion = false)
         {
             if (Settings.BuildSiblings)
             {
@@ -88,10 +89,7 @@ namespace DynamicRouting
             this.Settings = Settings;
 
             // Builds the slugs for itself
-            BuildUrlSlugs();
-
-            // Save itself syncly, the rest will be done asyncly.
-            SaveChanges(false);
+            BuildUrlSlugs(UseCurrentVersion);
 
             // This will possibly be something other than -1 only on the initial node based on settings.
             AlsoBuildNodeID = Settings.BuildSiblings ? PageNodeID : -1;
@@ -132,8 +130,9 @@ namespace DynamicRouting
 
         /// <summary>
         /// Generates the Url slugs for itself, first pulling any Custom Url Slugs, then rendering all culture codes outlined in the settings
+        /// <paramref name="UseCurrentVersion">If true, then will look to the current version of the document, used only in Checking for conflicts to block publishing</paramref>
         /// </summary>
-        public void BuildUrlSlugs()
+        public void BuildUrlSlugs(bool UseCurrentVersion = false)
         {
             // Temp replace Method version with Normal version
             string Pattern = Regex.Replace(DynamicRouteInternalHelper.GetClass(ClassName).ClassURLPattern, "ParentUrl\\(\\)", "ParentUrl", RegexOptions.IgnoreCase);
@@ -175,23 +174,38 @@ namespace DynamicRouting
                 bool IsDefaultCulture = CultureCode.Equals(Settings.DefaultCultureCode, StringComparison.InvariantCultureIgnoreCase);
 
                 // Get actual Document, if it's the default culture, it MUST return some document, no matter what.
-                TreeNode Document = DocumentHelper.GetDocuments(ClassName)
+                var DocQuery = DocumentHelper.GetDocuments(ClassName)
                     .WhereEquals("NodeID", NodeID)
                     .Culture(CultureCode)
-                    .CombineWithDefaultCulture(IsDefaultCulture || Settings.GenerateIfCultureDoesntExist)
-                    .PublishedVersion(true)
-                    .FirstOrDefault();
+                    .CombineWithDefaultCulture(IsDefaultCulture || Settings.GenerateIfCultureDoesntExist);
 
+                if (UseCurrentVersion)
+                {
+                    DocQuery.LatestVersion(true).Published(false);
+                }
+                else
+                {
+                    DocQuery.PublishedVersion(true);
+                }
+
+                TreeNode Document = DocQuery.FirstOrDefault();
                 // If the Document is either Null because there is no Default Culture, then get any document
                 // and set the culture code if the current Culture checking is either the default culture (required)
                 // or is another culture but should be generated due to the GenerateIfCultureDoesntExist setting
                 if (Document == null && (IsDefaultCulture || Settings.GenerateIfCultureDoesntExist))
                 {
-                    Document = DocumentHelper.GetDocuments(ClassName)
+                    var AnyCultureDocQuery = DocumentHelper.GetDocuments(ClassName)
                         .WhereEquals("NodeID", NodeID)
-                        .CombineWithAnyCulture()
-                        .PublishedVersion(true)
-                        .FirstOrDefault();
+                        .CombineWithAnyCulture();
+                    if (UseCurrentVersion)
+                    {
+                        AnyCultureDocQuery.LatestVersion(true).Published(false);
+                    }
+                    else
+                    {
+                        AnyCultureDocQuery.PublishedVersion(true);
+                    }
+                    Document = AnyCultureDocQuery.FirstOrDefault();
                     Document.DocumentCulture = CultureCode;
                 }
 
@@ -297,24 +311,21 @@ namespace DynamicRouting
             {
                 if (UrlSlug.IsNewOrUpdated)
                 {
-                    if (ValidationHelper.GetGuid(UrlSlug.ExistingNodeSlugGuid, Guid.Empty) == Guid.Empty)
+                    // Check for existing Url Slug that matches the new Url
+                    var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                        .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
+                        .WhereNotEquals("UrlSlugNodeID", NodeID)
+                        .FirstOrDefault();
+                    if (MatchingUrlSlug != null)
                     {
-                        // Check for existing Url Slug that matches the new Url
-                        var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
-                            .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
-                            .WhereNotEquals("UrlSlugNodeID", NodeID)
-                            .FirstOrDefault();
-                        if (MatchingUrlSlug != null)
-                        {
-                            // Get NodeAliasPaths
-                            string MainNodePath = DocumentHelper.GetDocuments()
-                                .WhereEquals("NodeID", NodeID)
-                                .FirstOrDefault().NodeAliasPath;
-                            string MatchNodePath = DocumentHelper.GetDocuments()
-                                .WhereEquals("NodeID", MatchingUrlSlug.UrlSlugNodeID)
-                                .FirstOrDefault().NodeAliasPath;
-                            Conflicts.Add($"Conflict on UrlSlug {UrlSlug.UrlSlug} between NodeID {NodeID} [{MainNodePath}] and {MatchingUrlSlug.UrlSlugNodeID} [{MatchNodePath}]");
-                        }
+                        // Get NodeAliasPaths
+                        string MainNodePath = DocumentHelper.GetDocuments()
+                            .WhereEquals("NodeID", NodeID)
+                            .FirstOrDefault().NodeAliasPath;
+                        string MatchNodePath = DocumentHelper.GetDocuments()
+                            .WhereEquals("NodeID", MatchingUrlSlug.UrlSlugNodeID)
+                            .FirstOrDefault().NodeAliasPath;
+                        Conflicts.Add($"Conflict on UrlSlug {UrlSlug.UrlSlug} between NodeID {NodeID} [{MainNodePath}] and {MatchingUrlSlug.UrlSlugNodeID} [{MatchNodePath}]");
                     }
                 }
             }
@@ -341,17 +352,14 @@ namespace DynamicRouting
             {
                 if (UrlSlug.IsNewOrUpdated)
                 {
-                    if (ValidationHelper.GetGuid(UrlSlug.ExistingNodeSlugGuid, Guid.Empty) == Guid.Empty)
+                    // Check for existing Url Slug that matches the new Url
+                    var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                        .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
+                        .WhereNotEquals("UrlSlugNodeID", NodeID)
+                        .FirstOrDefault();
+                    if (MatchingUrlSlug != null)
                     {
-                        // Check for existing Url Slug that matches the new Url
-                        var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
-                            .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
-                            .WhereNotEquals("UrlSlugNodeID", NodeID)
-                            .FirstOrDefault();
-                        if (MatchingUrlSlug != null)
-                        {
-                            return true;
-                        }
+                        return true;
                     }
                 }
             }
@@ -415,7 +423,8 @@ namespace DynamicRouting
                                         .FirstOrDefault() != null;
                                 }
                             }
-                            else { 
+                            else
+                            {
                                 // Technically should never hit this as the action should have either been cancelled or logged with an error
                                 throw new Exception("Conflict Found on Save and Url Slug Conflict Behavior Setting is not 'Append Post Fix' so could not complete action.");
                             }

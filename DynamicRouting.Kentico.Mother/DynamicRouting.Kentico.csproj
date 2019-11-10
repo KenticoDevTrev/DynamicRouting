@@ -540,7 +540,6 @@
     <Compile Include="Helpers\DynamicRouteHelper.cs" />
     <Compile Include="Helpers\DynamicRouteInitializationModule_Mother.cs" />
     <Compile Include="Helpers\DynamicRouteScheduledTasks.cs" />
-    <Compile Include="Helpers\VersionHistorySlugGenerationQueueUnigridExtension.cs" />
     <Compile Include="Helpers\SlugGenerationQueueUnigridExtension.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Testing\QuickOperations.cs">
