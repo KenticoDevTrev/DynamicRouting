@@ -1,12 +1,12 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.168
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29424.173
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicRouting.Kentico.Base", "DynamicRouting.Kentico.Base\DynamicRouting.Kentico.Base.csproj", "{66553B70-EF4A-40BA-B077-F5B88826EB82}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicRouting.Kentico.MVC", "DynamicRouting.Kentico.MVC\DynamicRouting.Kentico.MVC.csproj", "{8A9F8E7F-C18A-4D90-924A-27B50F5E51FF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicRouting", "DynamicRouting.Kentico.Mother\DynamicRouting.csproj", "{60D45549-BB62-4999-8F29-987B58B33127}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicRouting.Kentico", "DynamicRouting.Kentico.Mother\DynamicRouting.Kentico.csproj", "{60D45549-BB62-4999-8F29-987B58B33127}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

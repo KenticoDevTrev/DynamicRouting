@@ -10,8 +10,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Web;
 
 namespace DynamicRouting.Kentico
@@ -91,7 +89,7 @@ namespace DynamicRouting.Kentico
             };
 
             // Run any GetPage Event hooks which allow the users to set the Found Page
-            TreeNode FoundPage = null;
+            ITreeNode FoundPage = null;
             using (var DynamicRoutingGetPageTaskHandler = DynamicRoutingEvents.GetPage.StartEvent(Args))
             {
                 if (Args.FoundPage == null)

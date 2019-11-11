@@ -433,6 +433,7 @@
     <Reference Include="System.Spatial, Version=5.6.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Spatial.5.6.4\lib\net40\System.Spatial.dll</HintPath>
     </Reference>
+    <Reference Include="System.Transactions" />
     <Reference Include="System.ValueTuple, Version=4.0.2.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.ValueTuple.4.4.0\lib\net461\System.ValueTuple.dll</HintPath>
     </Reference>
@@ -457,11 +458,11 @@
     <Compile Include="Classes\Models\NodeItemBuilderSetting.cs" />
     <Compile Include="Classes\Models\NodeUrlSlug.cs" />
     <Compile Include="Classes\Other\UrlSlugCollisionException.cs" />
+    <Compile Include="Events\DynamicUrlEvents.cs" />
     <Compile Include="Events\GetCultureEventArgs.cs" />
     <Compile Include="Events\GetCultureEventHandler.cs" />
-    <Compile Include="Events\GetPageEventHandler.cs" />
-    <Compile Include="Events\DynamicUrlEvents.cs" />
     <Compile Include="Events\GetPageEventArgs.cs" />
+    <Compile Include="Events\GetPageEventHandler.cs" />
     <Compile Include="Helpers\DynamicRouteEventHelper.cs" />
     <Compile Include="Helpers\DynamicRouteInternalHelper.cs" />
     <Compile Include="Helpers\DynamicRouteInitializationModule.cs" />

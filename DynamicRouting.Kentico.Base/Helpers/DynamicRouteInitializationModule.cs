@@ -11,10 +11,12 @@ using DynamicRouting.Kentico;
 using DynamicRouting.Kentico.Classes;
 using System;
 using System.Data;
+using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Transactions;
 
 namespace DynamicRouting.Kentico
 {
@@ -79,8 +81,20 @@ namespace DynamicRouting.Kentico
             RecursionControl Trigger = new RecursionControl("UrlSlugNoLongerCustom_" + UrlSlug.UrlSlugGuid);
             if (!Trigger.Continue)
             {
-                // If Continue is false, then the Before update shows this needs to be rebuilt.
-                DynamicRouteInternalHelper.RebuildRoutesByNode(UrlSlug.UrlSlugNodeID);
+                try
+                {
+                    // If Continue is false, then the Before update shows this needs to be rebuilt.
+                    DynamicRouteInternalHelper.RebuildRoutesByNode(UrlSlug.UrlSlugNodeID);
+                }
+                catch (UrlSlugCollisionException ex)
+                {
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                    e.Cancel();
+                }
+                catch (Exception ex)
+                {
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                }
             }
         }
 
@@ -101,69 +115,124 @@ namespace DynamicRouting.Kentico
         private void Document_Publish_After(object sender, WorkflowEventArgs e)
         {
             // Update the document itself
-            DynamicRouteEventHelper.DocumentInsertUpdated(e.Document.NodeID);
+            try
+            {
+                DynamicRouteEventHelper.DocumentInsertUpdated(e.Document.NodeID);
+            }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+            }
         }
 
 
         private void UrlSlug_Update_Before_301Redirect(object sender, ObjectEventArgs e)
         {
-            UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
-
-            // Alternative Urls don't have the slash at the beginning
-            string OriginalUrlSlug = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug).Trim('/');
-
-            // save previous Url to 301 redirects
-            // Get DocumentID
-            var Document = DocumentHelper.GetDocuments()
-                .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
-                .CombineWithDefaultCulture()
-                .CombineWithAnyCulture()
-                .Culture(UrlSlug.UrlSlugCultureCode)
-                .FirstOrDefault();
-            var AlternativeUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
-                .WhereEquals("AlternativeUrlUrl", OriginalUrlSlug)
-                .FirstOrDefault();
-
-            SiteInfo Site = SiteInfoProvider.GetSiteInfo(Document.NodeSiteID);
-            string DefaultCulture = SettingsKeyInfoProvider.GetValue("CMSDefaultCultureCode", new SiteInfoIdentifier(Site.SiteName));
-
-            if (AlternativeUrl != null)
+            try
             {
-                if (AlternativeUrl.AlternativeUrlDocumentID != Document.DocumentID)
-                {
-                    // If Same NodeID, then make sure the DocumentID is of the one that is the DefaultCulture, if no DefaultCulture
-                    // Exists, then just ignore
-                    var AlternativeUrlDocument = DocumentHelper.GetDocument(AlternativeUrl.AlternativeUrlDocumentID, new TreeProvider());
+                UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
 
-                    // Log a warning
-                    if (AlternativeUrlDocument.NodeID != UrlSlug.UrlSlugNodeID)
+                // Alternative Urls don't have the slash at the beginning
+                string OriginalUrlSlug = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug).Trim('/');
+
+                // save previous Url to 301 redirects
+                // Get DocumentID
+                var Document = DocumentHelper.GetDocuments()
+                    .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                    .CombineWithDefaultCulture()
+                    .CombineWithAnyCulture()
+                    .Culture(UrlSlug.UrlSlugCultureCode)
+                    .FirstOrDefault();
+                var AlternativeUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
+                    .WhereEquals("AlternativeUrlUrl", OriginalUrlSlug)
+                    .FirstOrDefault();
+
+                SiteInfo Site = SiteInfoProvider.GetSiteInfo(Document.NodeSiteID);
+                string DefaultCulture = SettingsKeyInfoProvider.GetValue("CMSDefaultCultureCode", new SiteInfoIdentifier(Site.SiteName));
+
+                if (AlternativeUrl != null)
+                {
+                    if (AlternativeUrl.AlternativeUrlDocumentID != Document.DocumentID)
                     {
-                        EventLogProvider.LogEvent("W", "DynamicRouting", "AlternativeUrlConflict", eventDescription: string.Format("Conflict between Alternative Url '{0}' exists for Document {1} [{2}] which already exists as an Alternative Url for Document {3} [{4}].",
-                            AlternativeUrl.AlternativeUrlUrl,
-                            Document.NodeAliasPath,
-                            Document.DocumentCulture,
-                            AlternativeUrlDocument.NodeAliasPath,
-                            AlternativeUrlDocument.DocumentCulture
-                            ));
+                        // If Same NodeID, then make sure the DocumentID is of the one that is the DefaultCulture, if no DefaultCulture
+                        // Exists, then just ignore
+                        var AlternativeUrlDocument = DocumentHelper.GetDocument(AlternativeUrl.AlternativeUrlDocumentID, new TreeProvider());
+
+                        // Log a warning
+                        if (AlternativeUrlDocument.NodeID != UrlSlug.UrlSlugNodeID)
+                        {
+                            EventLogProvider.LogEvent("W", "DynamicRouting", "AlternativeUrlConflict", eventDescription: string.Format("Conflict between Alternative Url '{0}' exists for Document {1} [{2}] which already exists as an Alternative Url for Document {3} [{4}].",
+                                AlternativeUrl.AlternativeUrlUrl,
+                                Document.NodeAliasPath,
+                                Document.DocumentCulture,
+                                AlternativeUrlDocument.NodeAliasPath,
+                                AlternativeUrlDocument.DocumentCulture
+                                ));
+                        }
+                        TreeNode DefaultLanguage = DocumentHelper.GetDocuments()
+                            .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                            .Culture(DefaultCulture)
+                            .CombineWithDefaultCulture()
+                            .FirstOrDefault();
+
+                        // Save only if there is no default language, or it is the default language, or if there is a default language adn it isn't it, that the Url doesn't match
+                        // Any of the default languages urls, as this often happens when you clone from an existing language and then save a new url.
+                        bool DefaultLanguageExists = DefaultLanguage != null;
+                        bool IsNotDefaultLanguage = DefaultLanguageExists && AlternativeUrl.AlternativeUrlDocumentID != DefaultLanguage.DocumentID;
+                        bool MatchesDefaultLang = false;
+                        if (DefaultLanguageExists && IsNotDefaultLanguage)
+                        {
+                            // See if the OriginalUrlSlug matches the default document, or one of it's alternates
+                            var DefaultLangUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                                .WhereEquals("UrlSlugNodeID", UrlSlug.UrlSlugNodeID)
+                                .WhereEquals("UrlSlugCultureCode", DefaultLanguage.DocumentCulture)
+                                .WhereEquals("UrlSlug", "/" + OriginalUrlSlug)
+                                .FirstOrDefault();
+                            var DefaultLangAltUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
+                                .WhereEquals("AlternativeUrlDocumentID", DefaultLanguage.DocumentID)
+                                .WhereEquals("AlternativeUrlUrl", OriginalUrlSlug)
+                                .FirstOrDefault();
+                            MatchesDefaultLang = DefaultLangUrlSlug != null || DefaultLangAltUrl != null;
+                        }
+
+                        if (!DefaultLanguageExists || !IsNotDefaultLanguage || (DefaultLanguageExists && IsNotDefaultLanguage && !MatchesDefaultLang))
+                        {
+                            AlternativeUrl.AlternativeUrlDocumentID = DefaultLanguage.DocumentID;
+                            AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                        }
                     }
-                    TreeNode DefaultLanguage = DocumentHelper.GetDocuments()
-                        .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
-                        .Culture(DefaultCulture)
-                        .CombineWithDefaultCulture()
-                        .FirstOrDefault();
+                }
+                else
+                {
+                    // Create new one
+                    AlternativeUrl = new AlternativeUrlInfo()
+                    {
+                        AlternativeUrlDocumentID = Document.DocumentID,
+                        AlternativeUrlSiteID = Document.NodeSiteID,
+                    };
+                    AlternativeUrl.SetValue("AlternativeUrlUrl", OriginalUrlSlug);
 
                     // Save only if there is no default language, or it is the default language, or if there is a default language adn it isn't it, that the Url doesn't match
                     // Any of the default languages urls, as this often happens when you clone from an existing language and then save a new url.
+                    TreeNode DefaultLanguage = DocumentHelper.GetDocuments()
+                            .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                            .Culture(DefaultCulture)
+                            .FirstOrDefault();
                     bool DefaultLanguageExists = DefaultLanguage != null;
                     bool IsNotDefaultLanguage = DefaultLanguageExists && AlternativeUrl.AlternativeUrlDocumentID != DefaultLanguage.DocumentID;
                     bool MatchesDefaultLang = false;
-                    if(DefaultLanguageExists && IsNotDefaultLanguage)
+                    if (DefaultLanguageExists && IsNotDefaultLanguage)
                     {
                         // See if the OriginalUrlSlug matches the default document, or one of it's alternates
                         var DefaultLangUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
                             .WhereEquals("UrlSlugNodeID", UrlSlug.UrlSlugNodeID)
                             .WhereEquals("UrlSlugCultureCode", DefaultLanguage.DocumentCulture)
-                            .WhereEquals("UrlSlug", "/"+OriginalUrlSlug)
+                            .WhereEquals("UrlSlug", "/" + OriginalUrlSlug)
                             .FirstOrDefault();
                         var DefaultLangAltUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
                             .WhereEquals("AlternativeUrlDocumentID", DefaultLanguage.DocumentID)
@@ -171,116 +240,170 @@ namespace DynamicRouting.Kentico
                             .FirstOrDefault();
                         MatchesDefaultLang = DefaultLangUrlSlug != null || DefaultLangAltUrl != null;
                     }
-
                     if (!DefaultLanguageExists || !IsNotDefaultLanguage || (DefaultLanguageExists && IsNotDefaultLanguage && !MatchesDefaultLang))
                     {
-                        AlternativeUrl.AlternativeUrlDocumentID = DefaultLanguage.DocumentID;
-                        AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                        try
+                        {
+                            AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                        }
+                        catch (InvalidAlternativeUrlException ex)
+                        {
+                            // Figure out what to do, it doesn't match the pattern constraints.
+                        }
                     }
                 }
             }
-            else
+            catch (Exception ex)
             {
-                // Create new one
-                AlternativeUrl = new AlternativeUrlInfo()
-                {
-                    AlternativeUrlDocumentID = Document.DocumentID,
-                    AlternativeUrlSiteID = Document.NodeSiteID,
-                };
-                AlternativeUrl.SetValue("AlternativeUrlUrl", OriginalUrlSlug);
-
-                // Save only if there is no default language, or it is the default language, or if there is a default language adn it isn't it, that the Url doesn't match
-                // Any of the default languages urls, as this often happens when you clone from an existing language and then save a new url.
-                TreeNode DefaultLanguage = DocumentHelper.GetDocuments()
-                        .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
-                        .Culture(DefaultCulture)
-                        .FirstOrDefault();
-                bool DefaultLanguageExists = DefaultLanguage != null;
-                bool IsNotDefaultLanguage = DefaultLanguageExists && AlternativeUrl.AlternativeUrlDocumentID != DefaultLanguage.DocumentID;
-                bool MatchesDefaultLang = false;
-                if (DefaultLanguageExists && IsNotDefaultLanguage)
-                {
-                    // See if the OriginalUrlSlug matches the default document, or one of it's alternates
-                    var DefaultLangUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
-                        .WhereEquals("UrlSlugNodeID", UrlSlug.UrlSlugNodeID)
-                        .WhereEquals("UrlSlugCultureCode", DefaultLanguage.DocumentCulture)
-                        .WhereEquals("UrlSlug", "/" + OriginalUrlSlug)
-                        .FirstOrDefault();
-                    var DefaultLangAltUrl = AlternativeUrlInfoProvider.GetAlternativeUrls()
-                        .WhereEquals("AlternativeUrlDocumentID", DefaultLanguage.DocumentID)
-                        .WhereEquals("AlternativeUrlUrl", OriginalUrlSlug)
-                        .FirstOrDefault();
-                    MatchesDefaultLang = DefaultLangUrlSlug != null || DefaultLangAltUrl != null;
-                }
-                if (!DefaultLanguageExists || !IsNotDefaultLanguage || (DefaultLanguageExists && IsNotDefaultLanguage && !MatchesDefaultLang))
-                {
-                    try
-                    {
-                        AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
-                    }
-                    catch (InvalidAlternativeUrlException ex)
-                    {
-                        // Figure out what to do, it doesn't match the pattern constraints.
-                    }
-                }
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "AlternateUrlError", ex.Message);
             }
         }
 
         private void Document_Update_After(object sender, DocumentEventArgs e)
         {
             // Update the document itself, only if there is no workflow
-            if (e.Node.WorkflowStep == null)
+            try
             {
-                DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
-            }
-            else
-            {
-                if (e.Node.WorkflowStep.StepIsPublished && DynamicRouteInternalHelper.ErrorOnConflict())
+                if (e.Node.WorkflowStep == null)
                 {
-                    DynamicRouteEventHelper.DocumentInsertUpdated_CheckOnly(e.Node.NodeID);
+                    DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+                }
+                else
+                {
+                    if (e.Node.WorkflowStep.StepIsPublished && DynamicRouteInternalHelper.ErrorOnConflict())
+                    {
+                        DynamicRouteEventHelper.DocumentInsertUpdated_CheckOnly(e.Node.NodeID);
+                    }
                 }
             }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                e.Cancel();
+            }
         }
+
+        private static void LogErrorsInSeparateThread(Exception ex, string Source, string EventCode, string Description)
+        {
+            CMSThread LogErrorsThread = new CMSThread(new ThreadStart(() => LogErrors(ex, Source, EventCode, Description)), new ThreadSettings()
+            {
+                Mode = ThreadModeEnum.Async,
+                IsBackground = true,
+                Priority = ThreadPriority.AboveNormal,
+                UseEmptyContext = false,
+                CreateLog = true
+            });
+            LogErrorsThread.Start();
+        }
+
+        /// <summary>
+        /// Async helper method, grabs the Queue that is set to be "running" for this application and processes.
+        /// </summary>
+        private static void LogErrors(Exception ex, string Source, string EventCode, string Description)
+        {
+            EventLogProvider.LogException(Source, EventCode, ex, additionalMessage: Description);
+        }
+
 
         private void Document_Sort_After(object sender, DocumentSortEventArgs e)
         {
             // Check parent which will see if Children need update
-            DynamicRouteInternalHelper.RebuildRoutesByNode(e.ParentNodeId);
+            try
+            {
+                DynamicRouteInternalHelper.RebuildRoutesByNode(e.ParentNodeId);
+            }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+            }
         }
 
         private void Document_Move_Before(object sender, DocumentEventArgs e)
         {
             // Add track of the Document's original Parent ID so we can rebuild on that after moved.
-            var Slot = Thread.GetNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
-            if (Slot == null)
+            try
             {
-                Slot = Thread.AllocateNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
+                var Slot = Thread.GetNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
+                if (Slot == null)
+                {
+                    Slot = Thread.AllocateNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID);
+                }
+                Thread.SetData(Slot, e.Node.NodeParentID);
             }
-            Thread.SetData(Slot, e.Node.NodeParentID);
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+            }
         }
 
         private void Document_Move_After(object sender, DocumentEventArgs e)
         {
             // Update on the Node itself, this will rebuild itself and it's children
             DynamicRouteInternalHelper.CommitTransaction(true);
-            DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
-
-            var PreviousParentNodeID = Thread.GetData(Thread.GetNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID));
-            if (PreviousParentNodeID != null && (int)PreviousParentNodeID != e.TargetParentNodeID)
+            try
             {
-                // If differnet node IDs, it moved to another parent, so also run Document Moved check on both new and old parent
-                DynamicRouteEventHelper.DocumentMoved((int)PreviousParentNodeID, e.TargetParentNodeID);
+                DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+
+                var PreviousParentNodeID = Thread.GetData(Thread.GetNamedDataSlot("PreviousParentIDForNode_" + e.Node.NodeID));
+                if (PreviousParentNodeID != null && (int)PreviousParentNodeID != e.TargetParentNodeID)
+                {
+                    // If differnet node IDs, it moved to another parent, so also run Document Moved check on both new and old parent
+                    DynamicRouteEventHelper.DocumentMoved((int)PreviousParentNodeID, e.TargetParentNodeID);
+                }
+            }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
             }
         }
 
         private void Document_InsertNewCulture_After(object sender, DocumentEventArgs e)
         {
-            DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            try
+            {
+                DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+            }
         }
 
         private void Document_InsertLink_After(object sender, DocumentEventArgs e)
         {
-            DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            try
+            {
+                DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+            }
         }
 
         private void Document_Insert_After(object sender, DocumentEventArgs e)
@@ -289,18 +412,54 @@ namespace DynamicRouting.Kentico
             RecursionControl PreventInsertAfter = new RecursionControl("PreventInsertAfter" + e.Node.NodeID);
             if (PreventInsertAfter.Continue)
             {
-                DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+                try
+                {
+                    DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+                }
+                catch (UrlSlugCollisionException ex)
+                {
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                    e.Cancel();
+                }
+                catch (Exception ex)
+                {
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                }
             }
         }
 
         private void Document_Delete_After(object sender, DocumentEventArgs e)
         {
-            DynamicRouteEventHelper.DocumentDeleted(e.Node.NodeParentID);
+            try
+            {
+                DynamicRouteEventHelper.DocumentDeleted(e.Node.NodeParentID);
+            }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+            }
         }
 
         private void Document_Copy_After(object sender, DocumentEventArgs e)
         {
-            DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            try
+            {
+                DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+            }
         }
 
         private void Document_ChangeOrder_After(object sender, DocumentChangeOrderEventArgs e)
@@ -309,7 +468,19 @@ namespace DynamicRouting.Kentico
             // So will use recursion helper to prevent this from running on the insert as well.
             RecursionControl PreventInsertAfter = new RecursionControl("PreventInsertAfter" + e.Node.NodeID);
             var Trigger = PreventInsertAfter.Continue;
-            DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            try
+            {
+                DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+            }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+            }
         }
 
         private void DataClass_Update_Before(object sender, ObjectEventArgs e)
@@ -333,7 +504,19 @@ namespace DynamicRouting.Kentico
             // Otherwise the "Continue" will be true that this is the first time triggering it.
             if (!new RecursionControl("TriggerClassUpdateAfter_" + Class.ClassName).Continue && PreventDoubleClassUpdateTrigger.Continue)
             {
-                DynamicRouteEventHelper.ClassUrlPatternChanged(Class.ClassName);
+                try
+                {
+                    DynamicRouteEventHelper.ClassUrlPatternChanged(Class.ClassName);
+                }
+                catch (UrlSlugCollisionException ex)
+                {
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                    e.Cancel();
+                }
+                catch (Exception ex)
+                {
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                }
             }
         }
 
@@ -343,31 +526,55 @@ namespace DynamicRouting.Kentico
             switch (Key.KeyName.ToLower())
             {
                 case "cmsdefaultculturecode":
-                    if (Key.SiteID > 0)
+                    try
                     {
-                        string SiteName = DynamicRouteInternalHelper.GetSite(Key.SiteID).SiteName;
-                        DynamicRouteEventHelper.SiteDefaultLanguageChanged(SiteName);
-                    }
-                    else
-                    {
-                        foreach (string SiteName in SiteInfoProvider.GetSites().Select(x => x.SiteName))
+                        if (Key.SiteID > 0)
                         {
+                            string SiteName = DynamicRouteInternalHelper.GetSite(Key.SiteID).SiteName;
                             DynamicRouteEventHelper.SiteDefaultLanguageChanged(SiteName);
                         }
+                        else
+                        {
+                            foreach (string SiteName in SiteInfoProvider.GetSites().Select(x => x.SiteName))
+                            {
+                                DynamicRouteEventHelper.SiteDefaultLanguageChanged(SiteName);
+                            }
+                        }
+                    }
+                    catch (UrlSlugCollisionException ex)
+                    {
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                        e.Cancel();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
                     }
                     break;
                 case "generateculturevariationurlslugs":
-                    if (Key.SiteID > 0)
+                    try
                     {
-                        string SiteName = DynamicRouteInternalHelper.GetSite(Key.SiteID).SiteName;
-                        DynamicRouteEventHelper.CultureVariationSettingsChanged(SiteName);
-                    }
-                    else
-                    {
-                        foreach (string SiteName in SiteInfoProvider.GetSites().Select(x => x.SiteName))
+                        if (Key.SiteID > 0)
                         {
+                            string SiteName = DynamicRouteInternalHelper.GetSite(Key.SiteID).SiteName;
                             DynamicRouteEventHelper.CultureVariationSettingsChanged(SiteName);
                         }
+                        else
+                        {
+                            foreach (string SiteName in SiteInfoProvider.GetSites().Select(x => x.SiteName))
+                            {
+                                DynamicRouteEventHelper.CultureVariationSettingsChanged(SiteName);
+                            }
+                        }
+                    }
+                    catch (UrlSlugCollisionException ex)
+                    {
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                        e.Cancel();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
                     }
                     break;
             }
@@ -375,9 +582,21 @@ namespace DynamicRouting.Kentico
 
         private void CultureSite_InsertDelete_After(object sender, ObjectEventArgs e)
         {
-            CultureSiteInfo CultureSite = (CultureSiteInfo)e.Object;
-            string SiteName = DynamicRouteInternalHelper.GetSite(CultureSite.SiteID).SiteName;
-            DynamicRouteEventHelper.SiteLanguageChanged(SiteName);
+            try
+            {
+                CultureSiteInfo CultureSite = (CultureSiteInfo)e.Object;
+                string SiteName = DynamicRouteInternalHelper.GetSite(CultureSite.SiteID).SiteName;
+                DynamicRouteEventHelper.SiteLanguageChanged(SiteName);
+            }
+            catch (UrlSlugCollisionException ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                e.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+            }
         }
     }
 }
