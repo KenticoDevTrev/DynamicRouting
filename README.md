@@ -6,14 +6,14 @@ While the main module consistant of a Kentico "Mother" Nuget package ([DynamicRo
 ## Installation
 
 ### Installing on the Admin ("Mother")
-1. Install the NuGet Package DynamicRouting.Kentico on your Kentico Admin instance, and run the site.
+1. Install the NuGet Package [DynamicRouting.Kentico](https://www.nuget.org/packages/DynamicRouting.Kentico/12.29.0) on your Kentico Admin instance, and run the site.
 1. Go to Modules within Kentico's Interface, edit Dynamic Routing, and go to Sites and add the module to the current site.
 1. If you wish, create Roles and assign the Permissions "Read", "Modify" or "Manage Url Slug" appropriately (Manage Url Slug is needed for users to customize Url Slugs on pages), and assign the Url Slugs UI element under CMS - Adminstration - Content Management - Pages - Edit - Properties - Url Slugs
 1. Configure Settings in Settings - URLs and SEO - Dynamic Routing if needed
 1. Lastly, go to Dynamic Routing UI element -> Quick Operations, and click `Rebuild Site` to generate your Url Slugs for the first time.
 
 ### Installing on the MVC Site
-1. Install the NuGet Package DynamicRouting.Kentico.MVC on your MVC Site, and run the site.
+1. Install the NuGet Package [DynamicRouting.Kentico.MVC](https://www.nuget.org/packages/DynamicRouting.Kentico.MVC/12.29.0) on your MVC Site, and run the site.
 2. Configure your RouteConfig.cs as seen below (under RouteConfig)
 3. Add DynamicRouting assembly tags as needed
 
