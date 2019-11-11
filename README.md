@@ -103,6 +103,9 @@ You can also use a new macro `{% ParentUrl() %}` which will automatically pull i
 
 If you wish to restore Kentico Portal Engine's Default behavior, you should just use either `{% NodeAliasPath %}` as your Pattern, or `/{% DocumentCulture %}{% NodeAliasPath %}`.
 
+## DynamicRoutingEvents
+I have also included 2 Global Event hooks for you to leverage.  DynamicRoutingEvents.GetPage.Before/After, and DynamicRoutingEvents.GetCulture.Before/After, which allow you to customize the logic of getting the page or culture in case you wish to implement some custom functionality.
+
 ## Page Templates and Empty Template
 Kentico Page Templates are fully supported, and any page that is found that has a Page Template will automatically be routed to the Page Template instead of the predetermined Dynamic Routing.
 
