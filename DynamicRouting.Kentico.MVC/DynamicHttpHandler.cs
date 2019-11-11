@@ -23,6 +23,10 @@ namespace DynamicRouting.Kentico.MVC
             }
         }
 
+        /// <summary>
+        /// Gets the page, and based on the Class of the Page, attempts to get the Dynamic routing information and processes.
+        /// </summary>
+        /// <param name="context"></param>
         public void ProcessRequest(HttpContext context)
         {
             var node = DynamicRouteHelper.GetPage();
@@ -34,14 +38,18 @@ namespace DynamicRouting.Kentico.MVC
             RequestContext.RouteData.Values["Action"] = routePair.ActionName;
 
             // May need to rethink how we do this, may be a better way.
-            IController controller = null;
             IControllerFactory factory = ControllerBuilder.Current.GetControllerFactory();
-            controller = factory.CreateController(RequestContext, routePair.ControllerName);
+            IController controller = factory.CreateController(RequestContext, routePair.ControllerName);
             controller.Execute(RequestContext);
 
             factory.ReleaseController(controller);
         }
 
+        /// <summary>
+        /// Determines where the Controller and Action should be based on the dynamic routing data
+        /// </summary>
+        /// <param name="node"></param>
+        /// <returns></returns>
         private DynamicRouteConfiguration ResolveRouteValues(ITreeNode node)
         {
             string defaultController = RequestContext.RouteData.Values.ContainsKey("controller")

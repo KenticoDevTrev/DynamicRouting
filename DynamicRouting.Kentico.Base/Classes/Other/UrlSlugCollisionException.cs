@@ -15,7 +15,7 @@ namespace DynamicRouting.Kentico.Classes
         {
 
         }
-        public UrlSlugCollisionException(string message) : base()
+        public UrlSlugCollisionException(string message) : base(message)
         {
 
         }

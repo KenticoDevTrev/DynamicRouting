@@ -11,6 +11,10 @@ namespace DynamicRouting.Kentico.MVC
 {
     public class DynamicRouteController : Controller
     {
+        /// <summary>
+        /// Renders the Dynamic Route View (no model)
+        /// </summary>
+        /// <returns></returns>
         public ActionResult RenderView()
         {
             var node = DynamicRouteHelper.GetPage();
@@ -20,6 +24,10 @@ namespace DynamicRouting.Kentico.MVC
             return View(routeConfig.ViewName);
         }
 
+        /// <summary>
+        /// Renders the View with either an ITreeNode model or the given Model Type
+        /// </summary>
+        /// <returns></returns>
         public ActionResult RenderViewWithModel()
         {
             var node = DynamicRouteHelper.GetPage();
@@ -37,6 +45,10 @@ namespace DynamicRouting.Kentico.MVC
             }
         }
 
+        /// <summary>
+        /// Returns an error message when the page is found but no DynamicRouting assembly tags were configured.
+        /// </summary>
+        /// <returns></returns>
         public ActionResult RouteValuesNotFound()
         {
             var node = DynamicRouteHelper.GetPage();

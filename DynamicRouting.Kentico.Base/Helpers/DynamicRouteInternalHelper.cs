@@ -20,7 +20,7 @@ using System.Xml.Serialization;
 namespace DynamicRouting
 {
     /// <summary>
-    /// Helper methods that execute the checks
+    /// Helper methods used internally
     /// </summary>
     public static class DynamicRouteInternalHelper
     {
@@ -61,7 +61,7 @@ namespace DynamicRouting
         /// <param name="value">The string to replace values in</param>
         /// <param name="CharsToReplace">The character array of characters to replace</param>
         /// <param name="ReplaceValue">The value to replace them with</param>
-        /// <returns></returns>
+        /// <returns>The cleaned string</returns>
         private static string ReplaceAnyCharInString(string value, char[] CharsToReplace, string ReplaceValue)
         {
             string[] temp = value.Split(CharsToReplace, StringSplitOptions.RemoveEmptyEntries);
@@ -211,7 +211,7 @@ namespace DynamicRouting
         /// <param name="SiteName"></param>
         /// <param name="CheckingForUpdates"></param>
         /// <param name="CheckEntireTree"></param>
-        /// <returns></returns>
+        /// <returns>The node item builder setting</returns>
         private static NodeItemBuilderSettings GetNodeItemBuilderSettings(string NodeAliasPath, string SiteName, bool CheckingForUpdates, bool CheckEntireTree)
         {
             return CacheHelper.Cache(cs =>
@@ -472,7 +472,7 @@ namespace DynamicRouting
                 GivenNodeItem.BuildChildren();
                 if (GivenNodeItem.ConflictsExist())
                 {
-                    string Error = $"Could not save document at {NodeAliasPath} due to a conflict in the generated route: {string.Join("\n\r", GivenNodeItem.GetConflictItems())}";
+                    string Error = $"Could not save document at {NodeAliasPath} due to a conflict in the generated route:\n\r {string.Join("\n\r", GivenNodeItem.GetConflictItems())}";
                     EventLogProvider.LogEvent("E", "DynamicRouting", "Conflict Exists", eventDescription: Error);
                     throw new UrlSlugCollisionException($"{Error} aborting save");
                 }

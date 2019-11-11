@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>$id$</id>
+    <version>$version$</version>
+    <title>$title$</title>
+    <authors>Kentico Community</authors>
+    <owners>Kentico Community</owners>
+    <projectUrl>https://github.com/KenticoDevTrev/DynamicRouting</projectUrl>
+    <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>$description$</description>
+    <releaseNotes></releaseNotes>
+    <copyright>Copyright 2019 Kentico Community</copyright>
+    <tags>Dynamic Routing, Kentico, MVC</tags>
+  </metadata>
+  <files>
+	<file src="bin\$configuration$\DynamicRouting.Kentico.Base.dll" target="lib\net461" />
+	<file src="bin\$configuration$\DynamicRouting.Kentico.Base.pdb" target="lib\net461" />
+	<file src="bin\$configuration$\$id$.pdb" target="lib\net461" />
+  </files>
+</package>

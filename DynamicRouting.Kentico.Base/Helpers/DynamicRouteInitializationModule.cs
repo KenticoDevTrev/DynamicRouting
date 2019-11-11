@@ -5,6 +5,7 @@ using CMS.DocumentEngine;
 using CMS.EventLog;
 using CMS.Helpers;
 using CMS.MacroEngine;
+using CMS.Scheduler;
 using CMS.SiteProvider;
 using CMS.WorkflowEngine;
 using DynamicRouting.Kentico;
@@ -42,6 +43,26 @@ namespace DynamicRouting.Kentico
                 EventLogProvider.LogException("DynamicRouting", "ErrorRunningSQLEntities", ex, additionalMessage: "Could not run DynamicRouting.UrlSlug.InitializeSQLEntities Query, this sets up Views and Foreign Keys vital to operation.  Please ensure these queries exist.");
             }
 
+            // Create Scheduled Tasks if it doesn't exist
+            if(TaskInfoProvider.GetTasks().WhereEquals("TaskName", "CheckUrlSlugQueue").Count == 0)
+            {
+                TaskInfo CheckUrlSlugQueueTask = new TaskInfo()
+                {
+                    TaskName = "CheckUrlSlugQueue",
+                    TaskDisplayName = "Dynamic Routing - Check Url Slug Generation Queue",
+                    TaskAssemblyName = "DynamicRouting.Kentico",
+                    TaskClass = "DynamicRouting.Kentico.DynamicRouteScheduledTasks",
+                    TaskInterval = "hour;11/3/2019 4:54:30 PM;1;00:00:00;23:59:00;Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+                    TaskDeleteAfterLastRun = false,
+                    TaskRunInSeparateThread = true,
+                    TaskAllowExternalService = true,
+                    TaskUseExternalService = false,
+                    TaskRunIndividuallyForEachSite = false,
+                    TaskEnabled = true
+                };
+                TaskInfoProvider.SetTaskInfo(CheckUrlSlugQueueTask);
+            }
+
             // Detect Site Culture changes
             CultureSiteInfo.TYPEINFO.Events.Insert.After += CultureSite_InsertDelete_After;
             CultureSiteInfo.TYPEINFO.Events.Delete.After += CultureSite_InsertDelete_After;
@@ -55,17 +76,17 @@ namespace DynamicRouting.Kentico
             DataClassInfo.TYPEINFO.Events.Update.After += DataClass_Update_After;
 
             // Document Changes
-            DocumentEvents.ChangeOrder.After += Document_ChangeOrder_After; // Done
-            DocumentEvents.Copy.After += Document_Copy_After; // Done
-            DocumentEvents.Delete.After += Document_Delete_After; // Done
-            DocumentEvents.Insert.After += Document_Insert_After;  // Done
-            DocumentEvents.InsertLink.After += Document_InsertLink_After; // Done
-            DocumentEvents.InsertNewCulture.After += Document_InsertNewCulture_After; // Done
-            DocumentEvents.Move.Before += Document_Move_Before; // Done
-            DocumentEvents.Move.After += Document_Move_After; // Done
-            DocumentEvents.Sort.After += Document_Sort_After; // Done
-            DocumentEvents.Update.After += Document_Update_After; // Done
-            WorkflowEvents.Publish.After += Document_Publish_After; // Done
+            DocumentEvents.ChangeOrder.After += Document_ChangeOrder_After;
+            DocumentEvents.Copy.After += Document_Copy_After;
+            DocumentEvents.Delete.After += Document_Delete_After;
+            DocumentEvents.Insert.After += Document_Insert_After;
+            DocumentEvents.InsertLink.After += Document_InsertLink_After;
+            DocumentEvents.InsertNewCulture.After += Document_InsertNewCulture_After;
+            DocumentEvents.Move.Before += Document_Move_Before;
+            DocumentEvents.Move.After += Document_Move_After;
+            DocumentEvents.Sort.After += Document_Sort_After;
+            DocumentEvents.Update.After += Document_Update_After;
+            WorkflowEvents.Publish.After += Document_Publish_After;
 
             // Handle 301 Redirect creation on Url Slug updates
             UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before_301Redirect;
@@ -88,12 +109,12 @@ namespace DynamicRouting.Kentico
                 }
                 catch (UrlSlugCollisionException ex)
                 {
-                    LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Url Slug {UrlSlug.UrlSlugID}");
                     e.Cancel();
                 }
                 catch (Exception ex)
                 {
-                    LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Url Slug {UrlSlug.UrlSlugID}");
                 }
             }
         }
@@ -121,22 +142,22 @@ namespace DynamicRouting.Kentico
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document Publish After of Node {e.Document.NodeID} [{e.Document.NodeAliasPath}]");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Publish After of Node {e.Document.NodeID} [{e.Document.NodeAliasPath}]");
             }
         }
 
 
         private void UrlSlug_Update_Before_301Redirect(object sender, ObjectEventArgs e)
         {
+            UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
+
             try
             {
-                UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
-
                 // Alternative Urls don't have the slash at the beginning
                 string OriginalUrlSlug = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug).Trim('/');
 
@@ -255,7 +276,7 @@ namespace DynamicRouting.Kentico
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "AlternateUrlError", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "AlternateUrlError", $"Occurred on Url Slug Update for Url Slug {UrlSlug.UrlSlug} {UrlSlug.UrlSlugCultureCode}");
             }
         }
 
@@ -278,12 +299,12 @@ namespace DynamicRouting.Kentico
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document Update After for ${e.Node.NodeAlias}.");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Update After for ${e.Node.NodeAlias}.");
                 e.Cancel();
             }
         }
@@ -319,12 +340,12 @@ namespace DynamicRouting.Kentico
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document Sort Update After for Parent Node ${e.ParentNodeId}.");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Sort Update After for Parent Node ${e.ParentNodeId}.");
             }
         }
 
@@ -342,7 +363,7 @@ namespace DynamicRouting.Kentico
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error",$"Occurred on Document Move Before for Node {e.Node.NodeAliasPath}");
             }
         }
 
@@ -363,12 +384,12 @@ namespace DynamicRouting.Kentico
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document After Before for Node {e.Node.NodeAliasPath}");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Move After for Node {e.Node.NodeAliasPath}");
             }
         }
 
@@ -380,12 +401,12 @@ namespace DynamicRouting.Kentico
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document New Culture After for Node {e.Node.NodeAliasPath}");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document New Culture After for Node {e.Node.NodeAliasPath}");
             }
         }
 
@@ -397,12 +418,12 @@ namespace DynamicRouting.Kentico
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document Insert Link After for Node {e.Node.NodeAliasPath}");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Insert Link After for Node {e.Node.NodeAliasPath}");
             }
         }
 
@@ -418,12 +439,12 @@ namespace DynamicRouting.Kentico
                 }
                 catch (UrlSlugCollisionException ex)
                 {
-                    LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document Insert After for Node {e.Node.NodeAliasPath}");
                     e.Cancel();
                 }
                 catch (Exception ex)
                 {
-                    LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Insert After for Node {e.Node.NodeAliasPath}");
                 }
             }
         }
@@ -436,12 +457,12 @@ namespace DynamicRouting.Kentico
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document Delete for Node {e.Node.NodeAliasPath}");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Delete for Node {e.Node.NodeAliasPath}");
             }
         }
 
@@ -453,12 +474,12 @@ namespace DynamicRouting.Kentico
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document Copy for Node {e.Node.NodeAliasPath}");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Copy for Node {e.Node.NodeAliasPath}");
             }
         }
 
@@ -474,12 +495,12 @@ namespace DynamicRouting.Kentico
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Document Change Order for Node {e.Node.NodeAliasPath}");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Change Order for Node {e.Node.NodeAliasPath}");
             }
         }
 
@@ -510,12 +531,12 @@ namespace DynamicRouting.Kentico
                 }
                 catch (UrlSlugCollisionException ex)
                 {
-                    LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Class Update After for class {Class.ClassName}");
                     e.Cancel();
                 }
                 catch (Exception ex)
                 {
-                    LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                    LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Class Update After for class {Class.ClassName}");
                 }
             }
         }
@@ -543,12 +564,12 @@ namespace DynamicRouting.Kentico
                     }
                     catch (UrlSlugCollisionException ex)
                     {
-                        LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Settings Key Update After for Key {Key.KeyName}");
                         e.Cancel();
                     }
                     catch (Exception ex)
                     {
-                        LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Settings Key Update After for Key {Key.KeyName}");
                     }
                     break;
                 case "generateculturevariationurlslugs":
@@ -569,12 +590,12 @@ namespace DynamicRouting.Kentico
                     }
                     catch (UrlSlugCollisionException ex)
                     {
-                        LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Settings Key Update After for Key {Key.KeyName}");
                         e.Cancel();
                     }
                     catch (Exception ex)
                     {
-                        LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Settings Key Update After for Key {Key.KeyName}");
                     }
                     break;
             }
@@ -582,20 +603,20 @@ namespace DynamicRouting.Kentico
 
         private void CultureSite_InsertDelete_After(object sender, ObjectEventArgs e)
         {
+            CultureSiteInfo CultureSite = (CultureSiteInfo)e.Object;
+            string SiteName = DynamicRouteInternalHelper.GetSite(CultureSite.SiteID).SiteName;
             try
             {
-                CultureSiteInfo CultureSite = (CultureSiteInfo)e.Object;
-                string SiteName = DynamicRouteInternalHelper.GetSite(CultureSite.SiteID).SiteName;
                 DynamicRouteEventHelper.SiteLanguageChanged(SiteName);
             }
             catch (UrlSlugCollisionException ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Culture Site Insert/Delete for Site {SiteName}");
                 e.Cancel();
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", ex.Message);
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Culture Site Insert/Delete for Site {SiteName}");
             }
         }
     }

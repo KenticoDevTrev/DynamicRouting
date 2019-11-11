@@ -7,6 +7,7 @@ using CMS;
 using CMS.DataEngine;
 using CMS.Helpers;
 using DynamicRouting;
+using CMS.Base;
 
 [assembly: RegisterObjectType(typeof(UrlSlugInfo), UrlSlugInfo.OBJECT_TYPE)]
 
@@ -39,6 +40,30 @@ namespace DynamicRouting
                 new ObjectDependency("UrlSlugNodeID", "cms.node", ObjectDependencyEnum.Required),
             },
         };
+
+        protected override bool CheckPermissionsInternal(PermissionsEnum permission, string siteName, IUserInfo userInfo, bool exceptionOnFailure)
+        {
+            switch(permission)
+            {
+                case PermissionsEnum.Read:
+                    return userInfo.IsAuthorizedPerResource("DynamicRouting.Kentico", "ManageUrlSlug", siteName, exceptionOnFailure) ||
+                           base.CheckPermissionsInternal(permission, siteName, userInfo, exceptionOnFailure);
+                case PermissionsEnum.Create:
+                    return userInfo.IsAuthorizedPerResource("DynamicRouting.Kentico", "ManageUrlSlug", siteName, exceptionOnFailure) ||
+                           base.CheckPermissionsInternal(permission, siteName, userInfo, exceptionOnFailure);
+                case PermissionsEnum.Modify:
+                    return userInfo.IsAuthorizedPerResource("DynamicRouting.Kentico", "ManageUrlSlug", siteName, exceptionOnFailure) ||
+                           base.CheckPermissionsInternal(permission, siteName, userInfo, exceptionOnFailure);
+                case PermissionsEnum.Delete:
+                    return userInfo.IsAuthorizedPerResource("DynamicRouting.Kentico", "ManageUrlSlug", siteName, exceptionOnFailure) ||
+                           base.CheckPermissionsInternal(permission, siteName, userInfo, exceptionOnFailure);
+                case PermissionsEnum.Destroy:
+                    return userInfo.IsAuthorizedPerResource("DynamicRouting.Kentico", "ManageUrlSlug", siteName, exceptionOnFailure) ||
+                           base.CheckPermissionsInternal(permission, siteName, userInfo, exceptionOnFailure);
+                default:
+                    return base.CheckPermissionsInternal(permission, siteName, userInfo, exceptionOnFailure);
+            }    
+        }
 
 
         /// <summary>

@@ -302,6 +302,10 @@ namespace DynamicRouting
             return UrlSlug?.UrlSlug;
         }
 
+        /// <summary>
+        /// Returns a list of Conflicts for the given build.
+        /// </summary>
+        /// <returns>List of all the conflicing Url Slugs</returns>
         public List<string> GetConflictItems()
         {
             List<string> Conflicts = new List<string>();
@@ -325,7 +329,7 @@ namespace DynamicRouting
                         string MatchNodePath = DocumentHelper.GetDocuments()
                             .WhereEquals("NodeID", MatchingUrlSlug.UrlSlugNodeID)
                             .FirstOrDefault().NodeAliasPath;
-                        Conflicts.Add($"Conflict on UrlSlug {UrlSlug.UrlSlug} between NodeID {NodeID} [{MainNodePath}] and {MatchingUrlSlug.UrlSlugNodeID} [{MatchNodePath}]");
+                        Conflicts.Add($"Conflict on UrlSlug [{UrlSlug.UrlSlug}] between NodeID {NodeID} [{MainNodePath}] and NodeID {MatchingUrlSlug.UrlSlugNodeID} [{MatchNodePath}]");
                     }
                 }
             }
@@ -373,6 +377,10 @@ namespace DynamicRouting
             return ConflictExists;
         }
 
+        /// <summary>
+        /// Saves any inserts, updates or deletes to the database
+        /// </summary>
+        /// <param name="SaveChildren">If the children should be saved as well.</param>
         public void SaveChanges(bool SaveChildren = true)
         {
 
