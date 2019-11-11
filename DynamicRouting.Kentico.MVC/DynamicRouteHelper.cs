@@ -90,7 +90,7 @@ namespace DynamicRouting
             };
 
             // Run any GetPage Event hooks which allow the users to set the Found Page
-            TreeNode FoundPage = null;
+            ITreeNode FoundPage = null;
             using (var DynamicRoutingGetPageTaskHandler = DynamicRoutingEvents.GetPage.StartEvent(Args))
             {
                 // Use the Event Hooks to apply the logic for your site to determine the Page

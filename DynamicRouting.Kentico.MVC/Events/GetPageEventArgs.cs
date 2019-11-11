@@ -10,7 +10,7 @@ namespace DynamicRouting
         /// <summary>
         /// The Page that is found, this is what will be returned from the GetPage function, set this.
         /// </summary>
-        public TreeNode FoundPage { get; set; }
+        public ITreeNode FoundPage { get; set; }
 
         /// <summary>
         /// The Request's Relative Url (no query strings), cleaned to be proper lookup format

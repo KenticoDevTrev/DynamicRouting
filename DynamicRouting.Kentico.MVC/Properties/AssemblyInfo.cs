@@ -6,10 +6,10 @@ using CMS;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("DynamicRouting.Kentico.MVC")]
-[assembly: AssemblyDescription("Allows for automatic detection of pages based on URL and routing based on refractoring.  For the MVC Site only.")]
+[assembly: AssemblyTitle("DynamicRouting.Kentico.MVCOnly")]
+[assembly: AssemblyDescription("Provides Dynamic Routing capabilities for Kentico based on DynamicRouting Attributes.  Must override Provides Dynamic Routing capabilities for Kentico based on DynamicRouting Attributes.  This is a stand alone MVC only module and does not integrate with the Url Slug logic in the normal DynamicRouting.Kentico packages.  Must override DynamicRoutingEvents.GetPage to insert your own lookup logic.")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("Kentico Community")]
 [assembly: AssemblyProduct("DynamicRouting.Kentico.MVC")]
 [assembly: AssemblyCopyright("2019 Kentico Community")]
 [assembly: AssemblyTrademark("")]
