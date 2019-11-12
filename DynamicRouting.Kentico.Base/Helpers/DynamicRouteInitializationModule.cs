@@ -58,7 +58,8 @@ namespace DynamicRouting.Kentico
                     TaskAllowExternalService = true,
                     TaskUseExternalService = false,
                     TaskRunIndividuallyForEachSite = false,
-                    TaskEnabled = true
+                    TaskEnabled = true,
+                    TaskData = ""
                 };
                 TaskInfoProvider.SetTaskInfo(CheckUrlSlugQueueTask);
             }
