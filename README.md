@@ -6,15 +6,16 @@ While the main module consistant of a Kentico "Mother" Nuget package ([DynamicRo
 ## Installation
 
 ### Installing on the Admin ("Mother")
-1. Install the NuGet Package DynamicRouting.Kentico on your Kentico Admin instance, and run the site.
+1. Install the NuGet Package [DynamicRouting.Kentico](https://www.nuget.org/packages/DynamicRouting.Kentico/12.29.0) on your Kentico Admin instance, and run the site.
 1. Go to Modules within Kentico's Interface, edit Dynamic Routing, and go to Sites and add the module to the current site.
 1. If you wish, create Roles and assign the Permissions "Read", "Modify" or "Manage Url Slug" appropriately (Manage Url Slug is needed for users to customize Url Slugs on pages), and assign the Url Slugs UI element under CMS - Adminstration - Content Management - Pages - Edit - Properties - Url Slugs
 1. Configure Settings in Settings - URLs and SEO - Dynamic Routing if needed
 1. Lastly, go to Dynamic Routing UI element -> Quick Operations, and click `Rebuild Site` to generate your Url Slugs for the first time.
 
 ### Installing on the MVC Site
-1. Install the NuGet Package DynamicRouting.Kentico.MVC on your MVC Site, and run the site.
+1. Install the NuGet Package [DynamicRouting.Kentico.MVC](https://www.nuget.org/packages/DynamicRouting.Kentico.MVC/12.29.0) on your MVC Site, and run the site.
 2. Configure your RouteConfig.cs as seen below (under RouteConfig)
+3. Register either the `EmptyPageTemplateFilter()` or `NoEmptyPageTemplateFilter()` as the last PageBuilderFilter to enable or disable the Empty Template system (see **Page Templates and Empty Template**)
 3. Add DynamicRouting assembly tags as needed
 
 ### Route Configuring
@@ -103,10 +104,39 @@ You can also use a new macro `{% ParentUrl() %}` which will automatically pull i
 
 If you wish to restore Kentico Portal Engine's Default behavior, you should just use either `{% NodeAliasPath %}` as your Pattern, or `/{% DocumentCulture %}{% NodeAliasPath %}`.
 
+## DynamicRoutingEvents
+I have also included 2 Global Event hooks for you to leverage.  DynamicRoutingEvents.GetPage.Before/After, and DynamicRoutingEvents.GetCulture.Before/After, which allow you to customize the logic of getting the page or culture in case you wish to implement some custom functionality.
+
 ## Page Templates and Empty Template
 Kentico Page Templates are fully supported, and any page that is found that has a Page Template will automatically be routed to the Page Template instead of the predetermined Dynamic Routing.
 
 Since Kentico's Default Page Template behavior is that if you only have 1 Page Template, it will automatically assign that, I have added an `Empty` Template that will appear as an option if Page Template's are available.  Selecting this will trigger the normal Dynamic Routing to occur instead of sending the Page to a Page Template.  This way you can allow the user to either select a Page Template you created, or just let the default Dynamic Routing occur.
+
+You need to either Enable or Remove this template through the `PageBuilderFilters.PageTemplates` feature.  There are two Filters that are available in the `DynamicRouting.Kentico.MVC`, `EmptyPageTemplateFilter` will enable the logic that if there is a template available, the Empty one will be presented along with it, and `NoEmptyPageTemplateFilter` will remove the Empty template no matter what.
+
+IF you use the `EmptyPageTemplateFilter()`, know it MUST be placed last on the list.
+
+Please refer to [Page Template Filtering](https://docs.kentico.com/k12sp/developing-websites/page-builder-development/developing-page-templates-in-mvc/filtering-page-templates-in-mvc), your code should look like this in your `Global.asax.cs':
+
+````csharp
+protected void Application_Start()
+    {
+        ...
+
+        RegisterPageTemplateFilters();
+    }
+
+    private void RegisterPageTemplateFilters()
+    {
+        PageBuilderFilters.PageTemplates.Add(new MyOtherFilters());
+        
+        // Enabled, This must be last!
+        PageBuilderFilters.PageTemplates.Add(new EmptyPageTemplateFilter());
+        // Disabled
+        // PageBuilderFilters.PageTemplates.Add(new NoEmptyPageTemplateFilter());
+    }
+
+````
 
 # Acknowledgement, Contributions, but fixes and License
 I want to give a shout out to Sean G. Wright for his help with the MVC routing portion of things.
