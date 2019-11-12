@@ -535,6 +535,7 @@
     <Compile Include="DynamicRoutingAttribute.cs" />
     <Compile Include="EmptyPageTemplate.cs" />
     <Compile Include="EmptyPageTemplateFilter.cs" />
+    <Compile Include="NoEmptyPageTemplateFilter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StaticRoutePriorityAttribute.cs" />
     <Compile Include="StaticRoutePriorityConstraint.cs" />
