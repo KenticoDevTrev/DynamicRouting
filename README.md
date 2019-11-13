@@ -15,7 +15,7 @@ While the main module consistant of a Kentico "Mother" Nuget package ([DynamicRo
 ### Installing on the MVC Site
 1. Install the NuGet Package [DynamicRouting.Kentico.MVC](https://www.nuget.org/packages/DynamicRouting.Kentico.MVC/12.29.0) on your MVC Site, and run the site.
 2. Configure your RouteConfig.cs as seen below (under RouteConfig)
-3. Register either the `EmptyPageTemplateFilter()` or `NoEmptyPageTemplateFilter()` as the last PageBuilderFilter to enable or disable the Empty Template system (see **Page Templates and Empty Template**)
+3. Register either the `EmptyPageTemplateFilter()` or `NoEmptyPageTemplateFilter()` as the last PageBuilderFilter to enable or disable the Empty Template system (see **Page Templates and Empty Template** section on this readme)
 3. Add DynamicRouting assembly tags as needed
 
 ### Route Configuring
