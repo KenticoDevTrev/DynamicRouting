@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Fixed Schedule Task creation error</releaseNotes>
+    <releaseNotes>Fixed Column Reference error on internal helper</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>

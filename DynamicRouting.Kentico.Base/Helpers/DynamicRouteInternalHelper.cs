@@ -998,7 +998,7 @@ namespace DynamicRouting
             }
 
             UrlSlugInfo UrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
-                .WhereEquals("NodeID", NodeID)
+                .WhereEquals("UrlSlugNodeID", NodeID)
                 .OrderBy($"case when UrlSlugCultureCode = '{SqlHelper.EscapeQuotes(DocumentCulture)}' then 0 else 1 end, case when UrlSlugCultureCode = '{CultureHelper.GetDefaultCultureCode(SiteName)}' then 0 else 1 end, UrlSlugCultureCode")
                 .FirstOrDefault();
 

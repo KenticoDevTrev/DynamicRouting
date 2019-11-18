@@ -35,7 +35,7 @@ namespace DynamicRouting.Kentico.Mother
                 e.Manifest.Metadata.IconUrl = "http://www.kentico.com/favicon.ico";
                 e.Manifest.Metadata.Copyright = "Copyright 2019 Kentico Community";
                 e.Manifest.Metadata.Title = "Dynamic Routing for Kentico v12 SP";
-                e.Manifest.Metadata.ReleaseNotes = "Fixed Schedule Task Creation Bug";
+                e.Manifest.Metadata.ReleaseNotes = "Fixed Column Reference error on internal helper";
             }
         }
     }
