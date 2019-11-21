@@ -150,4 +150,4 @@ I really hope this module helps the community out.
 Check the License.txt for License information, but in general this tool is free for all to use.
 
 # Compatability
-Can be used on any Kentico 12 SP site (hotfix 29 or above).  This was created for the Kentico team and Kentico 2020 should feature some variation of this tool, so upgrading shouldn't be a headache.
+Can be used on any Kentico 12 SP site (hotfix 29 or above).  This was created with the Kentico team so upgrading shouldn't be a headache.
