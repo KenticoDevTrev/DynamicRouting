@@ -157,10 +157,12 @@ namespace DynamicRouting.Kentico
         {
             UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
 
+            #region "Create Alternative Url of Previous Url"
             try
             {
                 // Alternative Urls don't have the slash at the beginning
-                string OriginalUrlSlug = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug).Trim('/');
+                string OriginalUrlSlugNoTrim = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug);
+                string OriginalUrlSlug = OriginalUrlSlugNoTrim.Trim('/');
 
                 // save previous Url to 301 redirects
                 // Get DocumentID
@@ -176,6 +178,12 @@ namespace DynamicRouting.Kentico
 
                 SiteInfo Site = SiteInfoProvider.GetSiteInfo(Document.NodeSiteID);
                 string DefaultCulture = SettingsKeyInfoProvider.GetValue("CMSDefaultCultureCode", new SiteInfoIdentifier(Site.SiteName));
+
+                UrlSlugInfo CultureSiblingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                    .WhereEquals("UrlSlug", OriginalUrlSlugNoTrim)
+                    .WhereEquals("UrlSlugNodeID", UrlSlug.UrlSlugNodeID)
+                    .WhereNotEquals("UrlSlugCultureCode", UrlSlug.UrlSlugCultureCode)
+                    .FirstOrDefault();
 
                 if (AlternativeUrl != null)
                 {
@@ -229,9 +237,8 @@ namespace DynamicRouting.Kentico
                         }
                     }
                 }
-                else
-                {
-                    // Create new one
+                // Create new one if there are no other Url Slugs with the same pattern for that node
+                else if (CultureSiblingUrlSlug == null) {
                     AlternativeUrl = new AlternativeUrlInfo()
                     {
                         AlternativeUrlDocumentID = Document.DocumentID,
@@ -279,6 +286,55 @@ namespace DynamicRouting.Kentico
             {
                 LogErrorsInSeparateThread(ex, "DynamicRouting", "AlternateUrlError", $"Occurred on Url Slug Update for Url Slug {UrlSlug.UrlSlug} {UrlSlug.UrlSlugCultureCode}");
             }
+            #endregion
+
+            #region "Remove any Alternative Url of the new Url for this node"
+            try
+            {
+                // Alternative Urls don't have the slash at the beginning
+                string NewUrlSlug = UrlSlug.UrlSlug.Trim('/');
+
+                // Check for any Alternative Urls for this node that match and remove
+                // Get DocumentID
+                var Document = DocumentHelper.GetDocuments()
+                    .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                    .CombineWithDefaultCulture()
+                    .CombineWithAnyCulture()
+                    .Culture(UrlSlug.UrlSlugCultureCode)
+                    .FirstOrDefault();
+                var AllDocumentIDs = DocumentHelper.GetDocuments()
+                    .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                    .AllCultures()
+                    .Columns("DocumentID")
+                    .Select(x => x.DocumentID).ToList();
+
+                // Delete any Alternate Urls for any of the culture variations of this node that match the new Url Slug, this is to prevent infinite redirect loops
+                AlternativeUrlInfoProvider.GetAlternativeUrls()
+                    .WhereEquals("AlternativeUrlUrl", NewUrlSlug)
+                    .WhereIn("AlternativeUrlDocumentID", AllDocumentIDs)
+                    .ForEachObject(x => x.Delete());
+
+                SiteInfo Site = SiteInfoProvider.GetSiteInfo(Document.NodeSiteID);
+                string DefaultCulture = SettingsKeyInfoProvider.GetValue("CMSDefaultCultureCode", new SiteInfoIdentifier(Site.SiteName));
+
+                var AltUrlsOnOtherNodes = AlternativeUrlInfoProvider.GetAlternativeUrls()
+                    .WhereEquals("AlternativeUrlUrl", NewUrlSlug)
+                    .WhereNotIn("AlternativeUrlDocumentID", AllDocumentIDs)
+                    .ToList();
+                    
+                // Add warning about conflict.
+                if (AltUrlsOnOtherNodes.Count > 0)
+                {
+                    EventLogProvider.LogEvent("W", "DynamicRouting", "AlternateUrlConflict", $"Another page with an alternate Url matching {UrlSlug.UrlSlug} was found, please adjust and correct.");
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "AlternateUrlError", $"Occurred on Url Slug Update for Url Slug {UrlSlug.UrlSlug} {UrlSlug.UrlSlugCultureCode}");
+            }
+
+            #endregion
         }
 
         private void Document_Update_After(object sender, DocumentEventArgs e)
