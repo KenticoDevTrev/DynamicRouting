@@ -40,7 +40,7 @@ namespace DynamicRouting.Kentico
             {
                 PreviewEnabled = PortalContext.ViewMode != ViewModeEnum.LiveSite;
             }
-            catch (InvalidOperationException ) { }
+            catch (InvalidOperationException) { }
 
             GetCultureEventArgs CultureArgs = new GetCultureEventArgs()
             {
@@ -52,19 +52,24 @@ namespace DynamicRouting.Kentico
 
             using (var DynamicRoutingGetCultureTaskHandler = DynamicRoutingEvents.GetCulture.StartEvent(CultureArgs))
             {
-                try
-                {
-                    if (PreviewEnabled && string.IsNullOrWhiteSpace(Culture))
-                    {
-                        CultureArgs.Culture = LocalizationContext.CurrentCulture.CultureCode;
-                    }
-                }
-                catch (InvalidOperationException ) { }
-
-                // If culture not set, use the CultureInfo.CurrentCulture property of System.Globalization
+                // If culture not set, use the LocalizationContext.CurrentCulture
                 if (string.IsNullOrWhiteSpace(Culture))
                 {
-                    CultureArgs.Culture = System.Globalization.CultureInfo.CurrentCulture.Name;
+                    try
+                    {
+                        CultureArgs.Culture = LocalizationContext.CurrentCulture.CultureName;
+                    }
+                    catch (Exception) { }
+                }
+
+                // if that fails then use the System.Globalization.CultureInfo
+                if (string.IsNullOrWhiteSpace(Culture))
+                {
+                    try
+                    {
+                        CultureArgs.Culture = System.Globalization.CultureInfo.CurrentCulture.Name;
+                    }
+                    catch (Exception) { }
                 }
 
                 DynamicRoutingGetCultureTaskHandler.FinishEvent();

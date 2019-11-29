@@ -2,6 +2,7 @@
 using CMS.DataEngine;
 using CMS.DocumentEngine;
 using CMS.Helpers;
+using CMS.Localization;
 using CMS.SiteProvider;
 using DynamicRouting.Helpers;
 using DynamicRouting.Kentico.MVC;
@@ -54,19 +55,35 @@ namespace DynamicRouting
 
             using (var DynamicRoutingGetCultureTaskHandler = DynamicRoutingEvents.GetCulture.StartEvent(CultureArgs))
             {
-                try
+
+                // If Preview is enabled, use the Kentico Preview CultureName
+                if (PreviewEnabled && string.IsNullOrWhiteSpace(Culture))
                 {
-                    if (PreviewEnabled && string.IsNullOrWhiteSpace(Culture))
+                    try
                     {
                         CultureArgs.Culture = HttpContext.Current.Kentico().Preview().CultureName;
                     }
+                    catch (Exception) { }
                 }
-                catch (InvalidOperationException ex) { }
 
-                // If culture not set, use the CultureInfo.CurrentCulture property of System.Globalization
-                if(string.IsNullOrWhiteSpace(Culture))
+                // If culture still not set, use the LocalizationContext.CurrentCulture
+                if (string.IsNullOrWhiteSpace(Culture))
                 {
-                    CultureArgs.Culture = CultureInfo.CurrentCulture.Name;
+                    try
+                    {
+                        CultureArgs.Culture = LocalizationContext.CurrentCulture.CultureName;
+                    }
+                    catch (Exception) { }
+                }
+
+                // If that fails then use the System.Globalization.CultureInfo
+                if (string.IsNullOrWhiteSpace(Culture))
+                {
+                    try
+                    {
+                        CultureArgs.Culture = System.Globalization.CultureInfo.CurrentCulture.Name;
+                    }
+                    catch (Exception) { }
                 }
 
                 DynamicRoutingGetCultureTaskHandler.FinishEvent();
@@ -100,8 +117,8 @@ namespace DynamicRouting
                     {
                         Args.FoundPage = CacheHelper.Cache<TreeNode>(cs =>
                         {
-                        // Using custom query as Kentico's API was not properly handling a Join and where.
-                        DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
+                            // Using custom query as Kentico's API was not properly handling a Join and where.
+                            DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
                             {
                     {"@Url", Url },
                     {"@Culture", Culture },
@@ -117,14 +134,14 @@ namespace DynamicRouting
                                         .WhereEquals("DocumentID", DocumentID)
                                         .CombineWithAnyCulture();
 
-                            // Handle Columns
-                            if (!string.IsNullOrWhiteSpace(ColumnsVal))
+                                // Handle Columns
+                                if (!string.IsNullOrWhiteSpace(ColumnsVal))
                                 {
                                     Query.Columns(ColumnsVal);
                                 }
 
-                            // Handle Preview
-                            if (PreviewEnabled)
+                                // Handle Preview
+                                if (PreviewEnabled)
                                 {
                                     Query.LatestVersion(true)
                                       .Published(false);
@@ -136,12 +153,12 @@ namespace DynamicRouting
 
                                 TreeNode Page = Query.FirstOrDefault();
 
-                            // Cache dependencies on the Url Slugs and also the DocumentID if available.
-                            if (cs.Cached)
+                                // Cache dependencies on the Url Slugs and also the DocumentID if available.
+                                if (cs.Cached)
                                 {
                                     if (Page != null)
                                     {
-                                    cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
+                                        cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
                             "dynamicrouting.urlslug|all",
                             "documentid|" + Page.DocumentID,  });
                                     }
@@ -152,8 +169,8 @@ namespace DynamicRouting
 
                                 }
 
-                            // Return Page Data
-                            return Query.FirstOrDefault();
+                                // Return Page Data
+                                return Query.FirstOrDefault();
                             }
                             else
                             {
