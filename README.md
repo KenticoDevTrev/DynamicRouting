@@ -138,6 +138,17 @@ protected void Application_Start()
 
 ````
 
+# Installing on Additional Environments
+As with any Kentico module that is available in a NuGet package, if you install this on one environment (ex "Dev") and wish to push this to the other environments, you will need to either...
+
+1. Install the Nuget Package on the other environments as well
+
+or
+
+1. Push the files (including 2 libraries in the bin) to the new environment, then go to Site -> Import Site or Object and select and import the `DynamicRouting.Kentico_12.29.3.zip`file found in the NuGet package (you can change .Nuget to .zip, extract it and find this file in `content\App_Data\CMSModules\DynamicRouting.Kentico\Install` and install, this will install the database objects
+
+In both cases, you should go to the Dynamic Routing module within the Kentico Admin, and under Quick Operations rebuild the site's url slugs on each environment.
+
 # Acknowledgement, Contributions, but fixes and License
 I want to give a shout out to Sean G. Wright for his help with the MVC routing portion of things.
 
