@@ -2,6 +2,7 @@
 using CMS.DataEngine;
 using CMS.DocumentEngine;
 using CMS.Helpers;
+using CMS.Localization;
 using CMS.SiteProvider;
 using DynamicRouting.Kentico.MVC;
 using DynamicRouting.Kentico.MVCOnly.Helpers;
@@ -53,19 +54,34 @@ namespace DynamicRouting
 
             using (var DynamicRoutingGetCultureTaskHandler = DynamicRoutingEvents.GetCulture.StartEvent(CultureArgs))
             {
-                try
+                // If Preview is enabled, use the Kentico Preview CultureName
+                if (PreviewEnabled && string.IsNullOrWhiteSpace(Culture))
                 {
-                    if (PreviewEnabled && string.IsNullOrWhiteSpace(Culture))
+                    try
                     {
                         CultureArgs.Culture = HttpContext.Current.Kentico().Preview().CultureName;
                     }
+                    catch (Exception) { }
                 }
-                catch (InvalidOperationException ex) { }
 
-                // If culture not set, use the CultureInfo.CurrentCulture property of System.Globalization
-                if(string.IsNullOrWhiteSpace(Culture))
+                // If culture still not set, use the LocalizationContext.CurrentCulture
+                if (string.IsNullOrWhiteSpace(Culture))
                 {
-                    CultureArgs.Culture = CultureInfo.CurrentCulture.Name;
+                    try
+                    {
+                        CultureArgs.Culture = LocalizationContext.CurrentCulture.CultureName;
+                    }
+                    catch (Exception) { }
+                }
+
+                // If that fails then use the System.Globalization.CultureInfo
+                if (string.IsNullOrWhiteSpace(Culture))
+                {
+                    try
+                    {
+                        CultureArgs.Culture = System.Globalization.CultureInfo.CurrentCulture.Name;
+                    }
+                    catch (Exception) { }
                 }
 
                 DynamicRoutingGetCultureTaskHandler.FinishEvent();
