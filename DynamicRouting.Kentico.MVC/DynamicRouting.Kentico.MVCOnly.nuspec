@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes></releaseNotes>
+    <releaseNotes>Updated CultureName retrieval to use Preview's Culture, followed by LocalizationContext.CurrentCulture, then System.Globalization.CultureInfo</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags></tags>
   </metadata>
