@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Fixed Column Reference error on internal helper</releaseNotes>
+    <releaseNotes>Updated CultureName retrieval to use Preview's Culture, followed by LocalizationContext.CurrentCulture, then System.Globalization.CultureInfo.  Fixed Alternate Url Handling to properly delete Alternate Urls for sibling culture matches so no conflicts.</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>

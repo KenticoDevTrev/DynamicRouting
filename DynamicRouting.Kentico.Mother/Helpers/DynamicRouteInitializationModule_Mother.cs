@@ -35,7 +35,7 @@ namespace DynamicRouting.Kentico.Mother
                 e.Manifest.Metadata.IconUrl = "http://www.kentico.com/favicon.ico";
                 e.Manifest.Metadata.Copyright = "Copyright 2019 Kentico Community";
                 e.Manifest.Metadata.Title = "Dynamic Routing for Kentico v12 SP";
-                e.Manifest.Metadata.ReleaseNotes = "Fixed Column Reference error on internal helper";
+                e.Manifest.Metadata.ReleaseNotes = "Updated CultureName retrieval to use Preview's Culture, followed by LocalizationContext.CurrentCulture, then System.Globalization.CultureInfo.  Fixed Alternate Url Handling to properly delete Alternate Urls for sibling culture matches so no conflicts.  Added missing Page Edit Alternate Form for Custom Url Slug Management.";
             }
         }
     }
