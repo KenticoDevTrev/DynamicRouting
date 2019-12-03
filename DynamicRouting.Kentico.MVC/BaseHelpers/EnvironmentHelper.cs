@@ -67,9 +67,9 @@ namespace DynamicRouting.Kentico.MVCOnly.Helpers
 
             // Replace forbidden characters
             // Remove / from the forbidden characters because that is part of the Url, of course.
-            if (string.IsNullOrWhiteSpace(SiteName) && !string.IsNullOrWhiteSpace(SiteContext.CurrentSiteName))
+            if (string.IsNullOrWhiteSpace(SiteName) && !string.IsNullOrWhiteSpace(DynamicRouteHelper.SiteContextSafe().SiteName))
             {
-                SiteName = SiteContext.CurrentSiteName;
+                SiteName = DynamicRouteHelper.SiteContextSafe().SiteName;
             }
             if (!string.IsNullOrWhiteSpace(SiteName))
             {

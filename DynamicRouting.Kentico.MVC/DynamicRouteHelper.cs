@@ -20,6 +20,15 @@ namespace DynamicRouting
     public static class DynamicRouteHelper
     {
         /// <summary>
+        /// Helper in case SiteContext is null for OWIN requests
+        /// </summary>
+        /// <returns></returns>
+        public static SiteInfo SiteContextSafe()
+        {
+            return SiteContext.CurrentSite != null ? SiteContext.CurrentSite : SiteInfoProvider.GetSites().TopN(1).FirstOrDefault();
+        }
+
+        /// <summary>
         /// Gets the CMS Page, returning the culture variation that either matches the given culture or the Url's culture, or the default site culture if not found.  You can use the DynamicRoutingEvents to hook in and apply your logic.        /// </summary>
         /// <param name="Url">The Url (part after the domain), if empty will use the Current Request</param>
         /// <param name="Culture">The Culture, not needed if the Url contains the culture that the UrlSlug has as part of it's generation.</param>
@@ -29,8 +38,8 @@ namespace DynamicRouting
         public static ITreeNode GetPage(string Url = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null)
         {
             // Load defaults
-            SiteName = (!string.IsNullOrWhiteSpace(SiteName) ? SiteName : SiteContext.CurrentSiteName);
-            string DefaultCulture = SiteContext.CurrentSite.DefaultVisitorCulture;
+            SiteName = (!string.IsNullOrWhiteSpace(SiteName) ? SiteName : SiteContextSafe().SiteName);
+            string DefaultCulture = SiteContextSafe().DefaultVisitorCulture;
             if (string.IsNullOrWhiteSpace(Url))
             {
                 Url = EnvironmentHelper.GetUrl(HttpContext.Current.Request.Url.AbsolutePath, HttpContext.Current.Request.ApplicationPath, SiteName);
