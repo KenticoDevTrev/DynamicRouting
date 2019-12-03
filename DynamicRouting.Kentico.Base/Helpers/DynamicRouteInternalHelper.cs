@@ -24,6 +24,11 @@ namespace DynamicRouting
     /// </summary>
     public static class DynamicRouteInternalHelper
     {
+        public static SiteInfo SiteContextSafe()
+        {
+            return SiteContext.CurrentSite != null ? SiteContext.CurrentSite : SiteInfoProvider.GetSites().TopN(1).FirstOrDefault();
+        }
+
         /// <summary>
         /// Cleans up the Url given the site settings
         /// </summary>
@@ -38,9 +43,9 @@ namespace DynamicRouting
 
             // Replace forbidden characters
             // Remove / from the forbidden characters because that is part of the Url, of course.
-            if (string.IsNullOrWhiteSpace(SiteName) && !string.IsNullOrWhiteSpace(SiteContext.CurrentSiteName))
+            if (string.IsNullOrWhiteSpace(SiteName) && !string.IsNullOrWhiteSpace(SiteContextSafe().SiteName))
             {
-                SiteName = SiteContext.CurrentSiteName;
+                SiteName = SiteContextSafe().SiteName;
             }
             if (!string.IsNullOrWhiteSpace(SiteName))
             {
@@ -712,7 +717,7 @@ namespace DynamicRouting
         /// <returns></returns>
         private static bool SkipErroredGenerations()
         {
-            return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("QueueErrorBehavior", new SiteInfoIdentifier(SiteContext.CurrentSiteID)), "skip").ToLower() == "skip";
+            return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("QueueErrorBehavior", new SiteInfoIdentifier(SiteContextSafe().SiteID)), "skip").ToLower() == "skip";
         }
 
         /// <summary>
@@ -743,7 +748,7 @@ namespace DynamicRouting
         /// <returns>The Site Name if given, or the current site name</returns>
         private static string GetSiteName(string SiteName)
         {
-            return !string.IsNullOrWhiteSpace(SiteName) ? SiteName : SiteContext.CurrentSiteName;
+            return !string.IsNullOrWhiteSpace(SiteName) ? SiteName : SiteContextSafe().SiteName;
         }
 
         /// <summary>
@@ -752,7 +757,7 @@ namespace DynamicRouting
         /// <returns></returns>
         public static bool ErrorOnConflict()
         {
-            return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("UrlSlugConflictBehavior", new SiteInfoIdentifier(SiteContext.CurrentSiteID)), "append").Equals("cancel", StringComparison.InvariantCultureIgnoreCase);
+            return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("UrlSlugConflictBehavior", new SiteInfoIdentifier(SiteContextSafe().SiteID)), "append").Equals("cancel", StringComparison.InvariantCultureIgnoreCase);
         }
 
         /// <summary>
@@ -767,7 +772,7 @@ namespace DynamicRouting
                 {
                     cs.CacheDependency = CacheHelper.GetCacheDependency("cms.settingskey|byname|urlslugexcludedclasses");
                 }
-                return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("UrlSlugExcludedClasses", new SiteInfoIdentifier(SiteContext.CurrentSiteID)), "").ToLower().Split(";".ToCharArray(), StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+                return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("UrlSlugExcludedClasses", new SiteInfoIdentifier(SiteContextSafe().SiteID)), "").ToLower().Split(";".ToCharArray(), StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
 
             }, new CacheSettings(1440, "UrlSlugExcludedClassNames"));
         }
@@ -778,7 +783,7 @@ namespace DynamicRouting
         /// <returns>True if the conflicting url should have an appendage added to it.</returns>
         public static bool AppendPostFixOnConflict()
         {
-            return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("UrlSlugConflictBehavior", new SiteInfoIdentifier(SiteContext.CurrentSiteID)), "append").Equals("append", StringComparison.InvariantCultureIgnoreCase);
+            return ValidationHelper.GetString(SettingsKeyInfoProvider.GetValue("UrlSlugConflictBehavior", new SiteInfoIdentifier(SiteContextSafe().SiteID)), "append").Equals("append", StringComparison.InvariantCultureIgnoreCase);
         }
 
         /// <summary>
@@ -899,7 +904,7 @@ namespace DynamicRouting
         {
             if (string.IsNullOrWhiteSpace(SiteName))
             {
-                SiteName = SiteContext.CurrentSiteName;
+                SiteName = SiteContextSafe().SiteName;
             }
             TreeNode Page = null;
             if (string.IsNullOrWhiteSpace(DocumentCulture))

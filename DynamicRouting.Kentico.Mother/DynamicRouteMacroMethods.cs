@@ -22,7 +22,7 @@ namespace DynamicRouting.Kentico
             int NodeID = ValidationHelper.GetInteger(context.Resolver.ResolveMacros("{% NodeID %}"), 0);
             int NodeParentID = ValidationHelper.GetInteger(context.Resolver.ResolveMacros("{% NodeParentID %}"), 0);
             string Culture = ValidationHelper.GetString(context.Resolver.ResolveMacros("{% DocumentCulture %}"), "en-US");
-            string DefaultCulture = SiteContext.CurrentSite.DefaultVisitorCulture;
+            string DefaultCulture = DynamicRouteInternalHelper.SiteContextSafe().DefaultVisitorCulture;
             return CacheHelper.Cache(cs =>
             {
                 UrlSlugInfo Slug = UrlSlugInfoProvider.GetUrlSlugs()

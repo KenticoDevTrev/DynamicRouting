@@ -20,7 +20,7 @@ namespace CMSApp.CMSModules.DynamicRouting
 
         protected void btnRebuildSite_Click(object sender, EventArgs e)
         {
-            DynamicRouteInternalHelper.RebuildRoutesBySite(SiteContext.CurrentSiteName);
+            DynamicRouteInternalHelper.RebuildRoutesBySite(DynamicRouteInternalHelper.SiteContextSafe().SiteName);
         }
 
         protected void btnRebuildSubTree_Click(object sender, EventArgs e)

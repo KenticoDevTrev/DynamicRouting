@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Updated CultureName retrieval to use Preview's Culture, followed by LocalizationContext.CurrentCulture, then System.Globalization.CultureInfo.  Fixed Alternate Url Handling to properly delete Alternate Urls for sibling culture matches so no conflicts.</releaseNotes>
+    <releaseNotes>Updated to use a Null-safe SiteContext Helper as SiteContext is often null on initial OWIN requests, which broke sites using OWIN Auth.</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>

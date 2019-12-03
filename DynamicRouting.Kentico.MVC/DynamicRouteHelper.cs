@@ -30,8 +30,9 @@ namespace DynamicRouting
         public static ITreeNode GetPage(string Url = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null)
         {
             // Load defaults
-            SiteName = (!string.IsNullOrWhiteSpace(SiteName) ? SiteName : SiteContext.CurrentSiteName);
-            string DefaultCulture = SiteContext.CurrentSite.DefaultVisitorCulture;
+            SiteName = (!string.IsNullOrWhiteSpace(SiteName) ? SiteName : DynamicRouteInternalHelper.SiteContextSafe().SiteName);
+            string DefaultCulture = DynamicRouteInternalHelper.SiteContextSafe().DefaultVisitorCulture;
+            
             if (string.IsNullOrWhiteSpace(Url))
             {
                 Url = EnvironmentHelper.GetUrl(HttpContext.Current.Request.Url.AbsolutePath, HttpContext.Current.Request.ApplicationPath, SiteName);
