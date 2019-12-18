@@ -337,6 +337,9 @@ Here are some samples:
 [assembly: DynamicRouting("DynamicRoutingTesting/DynamicModel", typeof(MyPageTypeModel), MyPageTypeModel.CLASS_NAME)]
 ```
 
+## DynamicRoutingEvents
+I have also included 3 Global Event hooks for you to leverage. DynamicRoutingEvents.GetPage.Before/After, DynamicRoutingEvents.GetCulture.Before/After, and DynamicRoutingEvents.RequestRouting.Before/After, which allow you to customize the logic of getting the page or the culture (in case you wish to implement some custom functionality), or the Routing itself.
+
 # Contributions, but fixes and License
 Feel free to Fork and submit pull requests to contribute.
 
