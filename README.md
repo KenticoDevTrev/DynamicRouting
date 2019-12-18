@@ -29,21 +29,18 @@ public static void RegisterRoutes(RouteCollection routes)
         routes.IgnoreRoute("{resource}.axd/{*pathInfo}");
 
         routes.Kentico().MapRoutes();
+    
+        // This will honor Attribute Routing in MVC [Route("")] and [RoutePrefix("")] over Dynamic Routing
+        //<see href="https://devblogs.microsoft.com/aspnet/attribute-routing-in-asp-net-mvc-5/">See Attribute Routing</see>
+        routes.MapMvcAttributeRoutes();
 
         // Redirect to administration site if the path is "admin"
+        // Can also replace this with the [Route("Admin")] on your AdminRedirectController's Index Method
         routes.MapRoute(
             name: "Admin",
             url: "admin",
             defaults: new { controller = "AdminRedirect", action = "Index" }
         );
-
-        // If a normal MVC Route is found and it has priority, it will take it, otherwise it will bypass.
-        var route = routes.MapRoute(
-             name: "DefaultIfPriority",
-             url: "{controller}/{action}/{id}",
-             defaults: new { controller = "Home", action = "Index", id = UrlParameter.Optional },
-             constraints: new { ControlIsPriority = new StaticRoutePriorityConstraint() }
-         );
 
         // If the Page is found, will handle the routing dynamically
         route = routes.MapRoute(
