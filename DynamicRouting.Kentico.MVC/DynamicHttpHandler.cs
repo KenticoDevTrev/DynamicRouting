@@ -33,11 +33,27 @@ namespace DynamicRouting.Kentico.MVC
 
             var routePair = ResolveRouteValues(node);
 
-            // Setup routing with new values
-            RequestContext.RouteData.Values["Controller"] = routePair.ControllerName;
-            RequestContext.RouteData.Values["Action"] = routePair.ActionName;
+            RequestRoutingEventArgs RequestArgs = new RequestRoutingEventArgs()
+            {
+                Page = node,
+                Configuration = routePair,
+                CurrentRequestContext = RequestContext
+            };
 
-            // May need to rethink how we do this, may be a better way.
+            // Use event to allow users to overwrite the Dynamic Routing Data
+            using (var RequestRoutingHandler = DynamicRoutingEvents.RequestRouting.StartEvent(RequestArgs))
+            {
+                // Setup routing with new values
+                RequestArgs.CurrentRequestContext.RouteData.Values["Controller"] = routePair.ControllerName;
+                RequestArgs.CurrentRequestContext.RouteData.Values["Action"] = routePair.ActionName;
+
+                // Allow users to adjust the RequestContext further
+                RequestRoutingHandler.FinishEvent();
+
+                // Pass back context
+                RequestContext = RequestArgs.CurrentRequestContext;
+            }
+
             IControllerFactory factory = ControllerBuilder.Current.GetControllerFactory();
             IController controller = factory.CreateController(RequestContext, routePair.ControllerName);
             controller.Execute(RequestContext);

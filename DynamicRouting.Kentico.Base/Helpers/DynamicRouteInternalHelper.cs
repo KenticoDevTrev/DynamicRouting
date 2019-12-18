@@ -26,7 +26,14 @@ namespace DynamicRouting
     {
         public static SiteInfo SiteContextSafe()
         {
-            return SiteContext.CurrentSite != null ? SiteContext.CurrentSite : SiteInfoProvider.GetSites().TopN(1).FirstOrDefault();
+            return SiteContext.CurrentSite ?? CacheHelper.Cache(cs =>
+            {
+                if (cs.Cached)
+                {
+                    cs.CacheDependency = CacheHelper.GetCacheDependency("cms.site|all");
+                }
+                return SiteInfoProvider.GetSites().TopN(1).FirstOrDefault();
+            }, new CacheSettings(1440, "KenticoAuthorizationGetSiteContextSafe"));
         }
 
         /// <summary>

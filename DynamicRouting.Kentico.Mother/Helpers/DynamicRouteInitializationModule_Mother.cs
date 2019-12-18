@@ -35,7 +35,7 @@ namespace DynamicRouting.Kentico.Mother
                 e.Manifest.Metadata.IconUrl = "http://www.kentico.com/favicon.ico";
                 e.Manifest.Metadata.Copyright = "Copyright 2019 Kentico Community";
                 e.Manifest.Metadata.Title = "Dynamic Routing for Kentico v12 SP";
-                e.Manifest.Metadata.ReleaseNotes = "Updated to use a Null-safe SiteContext Helper as SiteContext is often null on initial OWIN requests, which broke sites using OWIN Auth.";
+                e.Manifest.Metadata.ReleaseNotes = "Added new RequestRouting Event hook to allow for Request Routing customization on MVC Side, fixed small GetCulture Event Bug.";
             }
         }
     }

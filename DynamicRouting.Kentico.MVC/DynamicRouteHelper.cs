@@ -51,14 +51,15 @@ namespace DynamicRouting
                 DefaultCulture = DefaultCulture,
                 SiteName = SiteName,
                 Request = HttpContext.Current.Request,
-                PreviewEnabled = PreviewEnabled
+                PreviewEnabled = PreviewEnabled,
+                Culture = Culture
             };
 
             using (var DynamicRoutingGetCultureTaskHandler = DynamicRoutingEvents.GetCulture.StartEvent(CultureArgs))
             {
 
                 // If Preview is enabled, use the Kentico Preview CultureName
-                if (PreviewEnabled && string.IsNullOrWhiteSpace(Culture))
+                if (PreviewEnabled && string.IsNullOrWhiteSpace(CultureArgs.Culture))
                 {
                     try
                     {
@@ -68,7 +69,7 @@ namespace DynamicRouting
                 }
 
                 // If culture still not set, use the LocalizationContext.CurrentCulture
-                if (string.IsNullOrWhiteSpace(Culture))
+                if (string.IsNullOrWhiteSpace(CultureArgs.Culture))
                 {
                     try
                     {
@@ -78,7 +79,7 @@ namespace DynamicRouting
                 }
 
                 // If that fails then use the System.Globalization.CultureInfo
-                if (string.IsNullOrWhiteSpace(Culture))
+                if (string.IsNullOrWhiteSpace(CultureArgs.Culture))
                 {
                     try
                     {
