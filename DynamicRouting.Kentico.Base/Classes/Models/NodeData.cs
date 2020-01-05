@@ -149,7 +149,7 @@ namespace DynamicRouting
             // If not checking for updates (rebuild), then the only ones we want to keep are the Custom Url Slugs.
             if (!Settings.CheckingForUpdates)
             {
-                SlugQuery.WhereEquals("IsCustom", true);
+                SlugQuery.WhereEquals("UrlSlugIsCustom", true);
             }
 
             // Import the existing Slugs (Custom if not checking for imports, or all of them)

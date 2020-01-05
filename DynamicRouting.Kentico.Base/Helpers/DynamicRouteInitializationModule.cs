@@ -5,6 +5,7 @@ using CMS.DocumentEngine;
 using CMS.EventLog;
 using CMS.Helpers;
 using CMS.MacroEngine;
+using CMS.Modules;
 using CMS.Scheduler;
 using CMS.SiteProvider;
 using CMS.WorkflowEngine;
@@ -34,34 +35,43 @@ namespace DynamicRouting.Kentico
         public void Init()
         {
             // Ensure that the Foreign Keys and Views exist
-            try
-            {
-                ConnectionHelper.ExecuteNonQuery("DynamicRouting.UrlSlug.InitializeSQLEntities");
-            }
-            catch (Exception ex)
-            {
-                EventLogProvider.LogException("DynamicRouting", "ErrorRunningSQLEntities", ex, additionalMessage: "Could not run DynamicRouting.UrlSlug.InitializeSQLEntities Query, this sets up Views and Foreign Keys vital to operation.  Please ensure these queries exist.");
-            }
-
-            // Create Scheduled Tasks if it doesn't exist
-            if(TaskInfoProvider.GetTasks().WhereEquals("TaskName", "CheckUrlSlugQueue").Count == 0)
-            {
-                TaskInfo CheckUrlSlugQueueTask = new TaskInfo()
+            if (ResourceInfoProvider.GetResourceInfo("DynamicRouting.Kentico") != null) { 
+                try
                 {
-                    TaskName = "CheckUrlSlugQueue",
-                    TaskDisplayName = "Dynamic Routing - Check Url Slug Generation Queue",
-                    TaskAssemblyName = "DynamicRouting.Kentico",
-                    TaskClass = "DynamicRouting.Kentico.DynamicRouteScheduledTasks",
-                    TaskInterval = "hour;11/3/2019 4:54:30 PM;1;00:00:00;23:59:00;Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
-                    TaskDeleteAfterLastRun = false,
-                    TaskRunInSeparateThread = true,
-                    TaskAllowExternalService = true,
-                    TaskUseExternalService = false,
-                    TaskRunIndividuallyForEachSite = false,
-                    TaskEnabled = true,
-                    TaskData = ""
-                };
-                TaskInfoProvider.SetTaskInfo(CheckUrlSlugQueueTask);
+                    ConnectionHelper.ExecuteNonQuery("DynamicRouting.UrlSlug.InitializeSQLEntities");
+                }
+                catch (Exception ex)
+                {
+                    EventLogProvider.LogException("DynamicRouting", "ErrorRunningSQLEntities", ex, additionalMessage: "Could not run DynamicRouting.UrlSlug.InitializeSQLEntities Query, this sets up Views and Foreign Keys vital to operation.  Please ensure these queries exist.");
+                }
+            }
+            // Create Scheduled Tasks if it doesn't exist
+            if (TaskInfoProvider.GetTasks().WhereEquals("TaskName", "CheckUrlSlugQueue").Count == 0)
+            {
+                try
+                {
+                    TaskInfo CheckUrlSlugQueueTask = new TaskInfo()
+                    {
+                        TaskName = "CheckUrlSlugQueue",
+                        TaskDisplayName = "Dynamic Routing - Check Url Slug Generation Queue",
+                        TaskAssemblyName = "DynamicRouting.Kentico",
+                        TaskClass = "DynamicRouting.Kentico.DynamicRouteScheduledTasks",
+                        TaskInterval = "hour;11/3/2019 4:54:30 PM;1;00:00:00;23:59:00;Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+                        TaskDeleteAfterLastRun = false,
+                        TaskRunInSeparateThread = true,
+                        TaskAllowExternalService = true,
+                        TaskUseExternalService = false,
+                        TaskRunIndividuallyForEachSite = false,
+                        TaskEnabled = true,
+                        TaskData = ""
+                    };
+                    CheckUrlSlugQueueTask.SetValue("TaskData", "");
+                    TaskInfoProvider.SetTaskInfo(CheckUrlSlugQueueTask);
+                } catch(Exception ex)
+                {
+                    EventLogProvider.LogException("DynamimcRouting", "ErrorCreatingUrlSlugQueue", ex, additionalMessage: "Could not create the CheckUrlSlugQueue scheduled task, please create a task with name 'CheckUrlSlugQueue' using assembly 'DynamicRouting.Kentico.DynamicRouteScheduledTasks' to run hourly.");
+                }
+                
             }
 
             // Detect Site Culture changes
