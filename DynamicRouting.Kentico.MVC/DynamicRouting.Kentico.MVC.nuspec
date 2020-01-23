@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Added catch so won't try to execute the SQL entities query until the module is actually installed, and wrapped schedule task creation in try block in case it errors.</releaseNotes>
+    <releaseNotes>IRequireSessionState attribute was missing from handler, causing the ASP.Net Session not to be passed.</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>

@@ -1,12 +1,11 @@
 ﻿using System;
 using System.Web;
-using System.Web.Routing;
 using System.Web.Mvc;
 using CMS.Base;
 using CMS.DataEngine;
 using CMS.Helpers;
-
 using RequestContext = System.Web.Routing.RequestContext;
+using System.Web.SessionState;
 
 namespace DynamicRouting.Kentico.MVC
 {
