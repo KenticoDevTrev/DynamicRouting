@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Added new RequestRouting Event hook to allow for Request Routing customization on MVC Side, fixed small GetCulture Event Bug.</releaseNotes>
+    <releaseNotes>IRequireSessionState attribute was missing from handler, causing the ASP.Net Session not to be passed.</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags></tags>
   </metadata>
