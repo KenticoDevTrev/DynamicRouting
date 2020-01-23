@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Web;
+using System.Web.Routing;
 using System.Web.Mvc;
 using CMS.Base;
 using CMS.DataEngine;
@@ -9,7 +10,7 @@ using RequestContext = System.Web.Routing.RequestContext;
 
 namespace DynamicRouting.Kentico.MVC
 {
-    public class DynamicHttpHandler : IHttpHandler
+    public class DynamicHttpHandler : IHttpHandler, IRequiresSessionState
     {
         public RequestContext RequestContext { get; set; }
 
