@@ -340,6 +340,9 @@ Here are some samples:
 ## DynamicRoutingEvents
 I have also included 3 Global Event hooks for you to leverage. DynamicRoutingEvents.GetPage.Before/After, DynamicRoutingEvents.GetCulture.Before/After, and DynamicRoutingEvents.RequestRouting.Before/After, which allow you to customize the logic of getting the page or the culture (in case you wish to implement some custom functionality), or the Routing itself.
 
+# Note on automatic Model Casting
+In order for `DynamicRouteHelper.GetPage()` to return the properly typed page (with a Type that matches your page type's generated code), that generated page type's class must be in a discoverable assembly, either the existing project, or in a separate class library that has the `[assembly: AssemblyDiscoverable]` attribute in it's AssemblyInfo.cs.  Otherwise it will return a TreeNode only and won't be able to convert to your Page Type Specific model dynamically, adn will throw an `InvalidCastException`.
+
 # Contributions, but fixes and License
 Feel free to Fork and submit pull requests to contribute.
 

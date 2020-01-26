@@ -29,7 +29,14 @@ namespace DynamicRouting.Kentico.MVC
             // Convert type
             if (routeConfig.ModelType != null)
             {
-                return View(routeConfig.ViewName, Convert.ChangeType(node, routeConfig.ModelType));
+                try
+                {
+                    return View(routeConfig.ViewName, Convert.ChangeType(node, routeConfig.ModelType));
+                }
+                catch (InvalidCastException ex)
+                {
+                    throw new InvalidCastException(ex.Message + ", this may be caused by the generated PageType class not being found in the project, or if it's located in an assembly that does not have [assembly: AssemblyDiscoverable] in it's AssemblyInfo.cs.  The found page is of type " + (node == null ? "Null" : node.GetType().FullName), ex);
+                }
             }
             else
             {
