@@ -146,6 +146,9 @@ or
 
 In both cases, you should go to the Dynamic Routing module within the Kentico Admin, and under Quick Operations rebuild the site's url slugs on each environment.
 
+# Note on automatic Model Casting
+In order for `DynamicRouteHelper.GetPage()` to return the properly typed page (with a Type that matches your page type's generated code), that generated page type's class must be in a discoverable assembly, either the existing project, or in a separate class library that has the `[assembly: AssemblyDiscoverable]` attribute in it's AssemblyInfo.cs.  Otherwise it will return a TreeNode only and won't be able to convert to your Page Type Specific model dynamically, adn will throw an `InvalidCastException`.
+
 # Acknowledgement, Contributions, but fixes and License
 I want to give a shout out to Sean G. Wright for his help with the MVC routing portion of things.
 
