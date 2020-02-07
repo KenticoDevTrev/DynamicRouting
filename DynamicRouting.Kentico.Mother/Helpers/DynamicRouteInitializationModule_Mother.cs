@@ -35,7 +35,7 @@ namespace DynamicRouting.Kentico.Mother
                 e.Manifest.Metadata.IconUrl = "http://www.kentico.com/favicon.ico";
                 e.Manifest.Metadata.Copyright = "Copyright 2019 Kentico Community";
                 e.Manifest.Metadata.Title = "Dynamic Routing for Kentico v12 SP";
-                e.Manifest.Metadata.ReleaseNotes = "Added catch so won't try to execute the SQL entities query until the module is actually installed, and wrapped schedule task creation in try block in case it errors.";
+                e.Manifest.Metadata.ReleaseNotes = "Fixed null exception error for CMS Admin Sku without Node Representation.";
             }
         }
     }

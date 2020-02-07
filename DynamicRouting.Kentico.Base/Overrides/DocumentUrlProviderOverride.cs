@@ -1,5 +1,6 @@
 ﻿using CMS;
 using CMS.DocumentEngine;
+using CMS.EventLog;
 using CMS.Helpers;
 using CMS.SiteProvider;
 using DynamicRouting.Kentico.Base;
@@ -24,24 +25,33 @@ namespace DynamicRouting.Kentico.Base
         /// <returns>The Relative Url</returns>
         protected override string GetUrlInternal(TreeNode node)
         {
-            if (!DynamicRouteInternalHelper.UrlSlugExcludedClassNames().Contains(node.ClassName.ToLower()))
+            try
             {
-                var FoundSlug = CacheHelper.Cache(cs =>
+                if (node == null)
                 {
-                    if (cs.Cached)
-                    {
-                        cs.CacheDependency = CacheHelper.GetCacheDependency("DynamicRouting.UrlSlug|all");
-                    }
-                    return UrlSlugInfoProvider.GetUrlSlugs()
-                    .WhereEquals("UrlSlugNodeID", node.NodeID)
-                    .WhereEquals("UrlSlugCultureCode", node.DocumentCulture)
-                    .FirstOrDefault();
-                }, new CacheSettings(1440, "GetUrlSlugByNode", node.NodeID, node.DocumentCulture));
-
-                if (FoundSlug != null)
-                {
-                    return FoundSlug.UrlSlug;
+                    return base.GetUrlInternal(node);
                 }
+                if (!DynamicRouteInternalHelper.UrlSlugExcludedClassNames().Contains(node.ClassName.ToLower()))
+                {
+                    var FoundSlug = CacheHelper.Cache(cs =>
+                    {
+                        if (cs.Cached)
+                        {
+                            cs.CacheDependency = CacheHelper.GetCacheDependency("DynamicRouting.UrlSlug|all");
+                        }
+                        return UrlSlugInfoProvider.GetUrlSlugs()
+                        .WhereEquals("UrlSlugNodeID", node.NodeID)
+                        .WhereEquals("UrlSlugCultureCode", node.DocumentCulture)
+                        .FirstOrDefault();
+                    }, new CacheSettings(1440, "GetUrlSlugByNode", node.NodeID, node.DocumentCulture));
+
+                    if (FoundSlug != null)
+                    {
+                        return FoundSlug.UrlSlug;
+                    }
+                }
+            } catch(Exception ex) {
+                EventLogProvider.LogException("DynamicRouting", "DocumentUrlProvider_GetUrlInternal_Error", ex, additionalMessage: "for node " + (node == null || node.NodeGUID == null ? "null" : node.NodeGUID.ToString()));
             }
             return base.GetUrlInternal(node);
         }
@@ -54,38 +64,45 @@ namespace DynamicRouting.Kentico.Base
         /// <returns></returns>
         protected override string GetPresentationUrlInternal(TreeNode node, string preferredDomainName = null)
         {
-            if (!DynamicRouteInternalHelper.UrlSlugExcludedClassNames().Contains(node.ClassName.ToLower()))
+            try
             {
                 if (node == null)
                 {
-                    return null;
+                    return base.GetPresentationUrlInternal(node, preferredDomainName);
                 }
-                var FoundSlug = CacheHelper.Cache(cs =>
-                {
-                    if (cs.Cached)
-                    {
-                        cs.CacheDependency = CacheHelper.GetCacheDependency("DynamicRouting.UrlSlug|all");
-                    }
-                    return UrlSlugInfoProvider.GetUrlSlugs()
-                    .WhereEquals("UrlSlugNodeID", node.NodeID)
-                    .WhereEquals("UrlSlugCultureCode", node.DocumentCulture)
-                    .FirstOrDefault();
-                }, new CacheSettings(1440, "GetUrlSlugByNode", node.NodeID, node.DocumentCulture));
 
-                if (FoundSlug != null)
+                if (!DynamicRouteInternalHelper.UrlSlugExcludedClassNames().Contains(node.ClassName.ToLower()))
                 {
-                    SiteInfo site = node.Site;
-                    string url = FoundSlug.UrlSlug;
-                    if (!string.IsNullOrEmpty(site.SitePresentationURL))
+                    var FoundSlug = CacheHelper.Cache(cs =>
                     {
-                        return URLHelper.CombinePath(url, '/', site.SitePresentationURL, null);
-                    }
-                    if (!string.IsNullOrEmpty(preferredDomainName))
+                        if (cs.Cached)
+                        {
+                            cs.CacheDependency = CacheHelper.GetCacheDependency("DynamicRouting.UrlSlug|all");
+                        }
+                        return UrlSlugInfoProvider.GetUrlSlugs()
+                        .WhereEquals("UrlSlugNodeID", node.NodeID)
+                        .WhereEquals("UrlSlugCultureCode", node.DocumentCulture)
+                        .FirstOrDefault();
+                    }, new CacheSettings(1440, "GetUrlSlugByNode", node.NodeID, node.DocumentCulture));
+
+                    if (FoundSlug != null)
                     {
-                        return URLHelper.GetAbsoluteUrl(url, preferredDomainName);
+                        SiteInfo site = node.Site;
+                        string url = FoundSlug.UrlSlug;
+                        if (!string.IsNullOrEmpty(site.SitePresentationURL))
+                        {
+                            return URLHelper.CombinePath(url, '/', site.SitePresentationURL, null);
+                        }
+                        if (!string.IsNullOrEmpty(preferredDomainName))
+                        {
+                            return URLHelper.GetAbsoluteUrl(url, preferredDomainName);
+                        }
+                        return URLHelper.GetAbsoluteUrl(url, site.DomainName);
                     }
-                    return URLHelper.GetAbsoluteUrl(url, site.DomainName);
                 }
+            } catch(Exception ex)
+            {
+                EventLogProvider.LogException("DynamicRouting", "DocumentUrlProvider_GetPresentationUrlInternal_Error", ex, additionalMessage: "for node " + (node == null || node.NodeGUID == null ? "null" : node.NodeGUID.ToString()));
             }
 
             return base.GetPresentationUrlInternal(node, preferredDomainName);
