@@ -6,14 +6,24 @@ using CMS.DataEngine;
 using CMS.Helpers;
 using RequestContext = System.Web.Routing.RequestContext;
 using System.Web.SessionState;
+using Kentico.PageBuilder.Web.Mvc;
+using Kentico.PageBuilder.Web.Mvc.PageTemplates;
+using System.Linq;
+using Newtonsoft.Json.Linq;
 
 namespace DynamicRouting.Kentico.MVC
 {
     public class DynamicHttpHandler : IHttpHandler, IRequiresSessionState
     {
+        private readonly IComponentDefinitionProvider<PageTemplateDefinition> _pageTemplateDefinitionProvider;
+
         public RequestContext RequestContext { get; set; }
 
-        public DynamicHttpHandler(RequestContext requestContext) => RequestContext = requestContext;
+        public DynamicHttpHandler(RequestContext requestContext)
+        {
+            RequestContext = requestContext;
+            _pageTemplateDefinitionProvider = new ComponentDefinitionProvider<PageTemplateDefinition>();
+        }
 
         public bool IsReusable
         {
@@ -76,11 +86,11 @@ namespace DynamicRouting.Kentico.MVC
                 ? RequestContext.RouteData.Values["action"].ToString()
                 : "";
 
-            if(string.IsNullOrWhiteSpace(defaultController))
+            if (string.IsNullOrWhiteSpace(defaultController))
             {
                 defaultController = "DynamicRoute";
             }
-            if(string.IsNullOrWhiteSpace(defaultAction))
+            if (string.IsNullOrWhiteSpace(defaultAction))
             {
                 defaultAction = "RouteValuesNotFound";
             }
@@ -90,9 +100,9 @@ namespace DynamicRouting.Kentico.MVC
                 return new DynamicRouteConfiguration(defaultController, defaultAction, null, null, DynamicRouteType.Controller);
             }
 
-            if (PageHasTemplate(node))
+            if (PageHasTemplate(node) && PageHasBasicPageTemplate(node))
             {
-                return new DynamicRouteConfiguration("DynamicRouteTemplate", "Index", null, null, DynamicRouteType.Controller);
+                return new DynamicRouteConfiguration("DynamicRouteTemplate", defaultAction, null, null, DynamicRouteType.Controller);
             }
 
             if (!DynamicRoutingAnalyzer.TryFindMatch(node.ClassName, out var match))
@@ -101,6 +111,25 @@ namespace DynamicRouting.Kentico.MVC
             }
 
             return match;
+        }
+
+        /// <summary>
+        /// Checks if the current page is using a basic MVC page template or not.
+        /// </summary>
+        /// <param name="Page">The Tree Node</param>
+        /// <returns>If it has a basic template or not</returns>
+        private bool PageHasBasicPageTemplate(ITreeNode Page)
+        {
+            string TemplateConfiguration = ValidationHelper.GetString(Page.GetValue("DocumentPageTemplateConfiguration"), "");
+
+            var json = JObject.Parse(TemplateConfiguration);
+            var templateIdentifier = ValidationHelper.GetString(json["identifier"], "");
+
+            var controllerName = _pageTemplateDefinitionProvider.GetAll()
+                            .FirstOrDefault(def => def.Identifier.Equals(templateIdentifier, StringComparison.InvariantCultureIgnoreCase))
+                            ?.ControllerName;
+
+            return string.IsNullOrWhiteSpace(controllerName);
         }
 
         /// <summary>
