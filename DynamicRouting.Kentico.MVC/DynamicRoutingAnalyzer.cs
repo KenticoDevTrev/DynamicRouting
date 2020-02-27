@@ -65,6 +65,8 @@ namespace DynamicRouting.Kentico.MVC
 
         public DynamicRouteType RouteType { get; }
 
+        public Dictionary<string, object> RouteValues { get; set; }
+
         public DynamicRouteConfiguration(string controllerName, string actionName, string viewName, Type modelType, DynamicRouteType routeType)
         {
             
@@ -88,6 +90,7 @@ namespace DynamicRouting.Kentico.MVC
                     ActionName = actionName;
                     break;
             }
+            RouteValues = new Dictionary<string, object>();
         }
     }
 

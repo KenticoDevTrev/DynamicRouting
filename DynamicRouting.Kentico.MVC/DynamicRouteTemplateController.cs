@@ -13,12 +13,17 @@ namespace DynamicRouting.Kentico.MVC
         /// <summary>
         /// Gets the node based on the current request url and then renders the template result.
         /// </summary>
-        public ActionResult Index()
+        public ActionResult Index(string TemplateControllerName = null)
         {
             ITreeNode FoundNode = DynamicRouteHelper.GetPage();
             if (FoundNode != null)
             {
                 HttpContext.Kentico().PageBuilder().Initialize(FoundNode.DocumentID);
+                if (!string.IsNullOrWhiteSpace(TemplateControllerName))
+                {
+                    // Adjust the route data to point to the template's controller if it has one.
+                    HttpContext.Request.RequestContext.RouteData.Values["Controller"] = TemplateControllerName;
+                }
                 return new TemplateResult(FoundNode.DocumentID);
             }
             else

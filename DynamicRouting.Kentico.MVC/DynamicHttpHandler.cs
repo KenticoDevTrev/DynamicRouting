@@ -1,20 +1,31 @@
 ﻿using System;
+using System.Linq;
 using System.Web;
 using System.Web.Mvc;
 using System.Web.SessionState;
 using CMS.Base;
 using CMS.DataEngine;
 using CMS.Helpers;
-
+using Kentico.PageBuilder.Web.Mvc;
+using Kentico.PageBuilder.Web.Mvc.PageTemplates;
+using Newtonsoft.Json.Linq;
 using RequestContext = System.Web.Routing.RequestContext;
 
 namespace DynamicRouting.Kentico.MVC
 {
     public class DynamicHttpHandler : IHttpHandler, IRequiresSessionState
     {
+        private readonly IComponentDefinitionProvider<PageTemplateDefinition> _pageTemplateDefinitionProvider;
+
         public RequestContext RequestContext { get; set; }
 
-        public DynamicHttpHandler(RequestContext requestContext) => RequestContext = requestContext;
+        public DynamicHttpHandler(RequestContext requestContext)
+        {
+            RequestContext = requestContext;
+            _pageTemplateDefinitionProvider = new ComponentDefinitionProvider<PageTemplateDefinition>();
+        }
+
+
 
         public bool IsReusable
         {
@@ -83,7 +94,15 @@ namespace DynamicRouting.Kentico.MVC
 
             if (PageHasTemplate(node))
             {
-                return new DynamicRouteConfiguration("DynamicRouteTemplate", "Index", null, null, DynamicRouteType.Controller);
+                var PageTemplateRouteConfig = new DynamicRouteConfiguration("DynamicRouteTemplate", "Index", null, null, DynamicRouteType.Controller);
+                string PageTemplateControllerName = GetPageTemplateController(node);
+
+                // When the Dynamic Route Template Controller renders the Page Template, the Route Controller needs to match or it won't look in the right spot for the view
+                if (!string.IsNullOrWhiteSpace(PageTemplateControllerName))
+                {
+                    PageTemplateRouteConfig.RouteValues.Add("TemplateControllerName", PageTemplateControllerName);
+                }
+                return PageTemplateRouteConfig;
             }
 
             if (!DynamicRoutingAnalyzer.TryFindMatch(node.ClassName, out var match))
@@ -99,7 +118,33 @@ namespace DynamicRouting.Kentico.MVC
         /// </summary>
         /// <param name="Page">The Tree Node</param>
         /// <returns>If it has a template or not</returns>
-        private static bool PageHasTemplate(ITreeNode Page)
+        private bool PageHasTemplate(ITreeNode Page)
+        {
+            string TemplateConfiguration = GetTemplateConfiguration(Page);
+            return !string.IsNullOrWhiteSpace(TemplateConfiguration) && !TemplateConfiguration.ToLower().Contains("\"empty.template\"");
+        }
+
+        private string GetPageTemplateController(ITreeNode Page)
+        {
+            string TemplateConfiguration = GetTemplateConfiguration(Page);
+            if (!string.IsNullOrWhiteSpace(TemplateConfiguration) && !TemplateConfiguration.ToLower().Contains("\"empty.template\""))
+            {
+                var json = JObject.Parse(TemplateConfiguration);
+                var templateIdentifier = ValidationHelper.GetString(json["identifier"], "");
+
+                // Return the controller name, if it has any
+                return _pageTemplateDefinitionProvider.GetAll()
+                                .FirstOrDefault(def => def.Identifier.Equals(templateIdentifier, StringComparison.InvariantCultureIgnoreCase))
+                                ?.ControllerName;
+            }
+            else
+            {
+                // No template
+                return null;
+            }
+        }
+
+        private string GetTemplateConfiguration(ITreeNode Page)
         {
             string TemplateConfiguration = ValidationHelper.GetString(Page.GetValue("DocumentPageTemplateConfiguration"), "");
 
@@ -113,8 +158,7 @@ namespace DynamicRouting.Kentico.MVC
                     TemplateConfiguration = ValidationHelper.GetString(Table.Rows[0]["PageBuilderTemplateConfiguration"], "");
                 }
             }
-
-            return !String.IsNullOrWhiteSpace(TemplateConfiguration) && !TemplateConfiguration.ToLower().Contains("\"empty.template\"");
+            return TemplateConfiguration;
         }
     }
 }
