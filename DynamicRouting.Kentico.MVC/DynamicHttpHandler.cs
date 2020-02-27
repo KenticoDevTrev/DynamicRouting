@@ -125,20 +125,6 @@ namespace DynamicRouting.Kentico.MVC
             return match;
         }
 
-        private string GetPageTemplateControllerName(ITreeNode Page)
-        {
-            string TemplateConfiguration = ValidationHelper.GetString(Page.GetValue("DocumentPageTemplateConfiguration"), "");
-
-            var json = JObject.Parse(TemplateConfiguration);
-            var templateIdentifier = ValidationHelper.GetString(json["identifier"], "");
-
-            var controllerName = _pageTemplateDefinitionProvider.GetAll()
-                            .FirstOrDefault(def => def.Identifier.Equals(templateIdentifier, StringComparison.InvariantCultureIgnoreCase))
-                            ?.ControllerName;
-
-            return controllerName;
-        }
-
         /// <summary>
         /// Checks if the current page is using a template or not.
         /// </summary>
