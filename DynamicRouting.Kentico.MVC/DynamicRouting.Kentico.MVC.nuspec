@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Fixed null exception error for CMS Admin Sku without Node Representation.</releaseNotes>
+    <releaseNotes>Fixed Request Controller Context for Dynamic Routes with Page Templates so default "View" would looke in proper Controller's folder if not specified.</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>
