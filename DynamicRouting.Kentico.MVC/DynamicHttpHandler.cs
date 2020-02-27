@@ -102,7 +102,7 @@ namespace DynamicRouting.Kentico.MVC
 
             if (PageHasTemplate(node) && PageHasBasicPageTemplate(node))
             {
-                return new DynamicRouteConfiguration("DynamicRouteTemplate", defaultAction, null, null, DynamicRouteType.Controller);
+                return new DynamicRouteConfiguration("DynamicRouteTemplate", "Index", null, null, DynamicRouteType.Controller);
             }
 
             if (!DynamicRoutingAnalyzer.TryFindMatch(node.ClassName, out var match))
