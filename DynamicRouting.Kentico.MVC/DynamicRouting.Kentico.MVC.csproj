@@ -535,6 +535,13 @@
     <Compile Include="DynamicRoutingAttribute.cs" />
     <Compile Include="EmptyPageTemplate.cs" />
     <Compile Include="EmptyPageTemplateFilter.cs" />
+    <Compile Include="Events\DynamicUrlEvents.cs" />
+    <Compile Include="Events\GetCultureEventArgs.cs" />
+    <Compile Include="Events\GetCultureEventHandler.cs" />
+    <Compile Include="Events\GetPageEventArgs.cs" />
+    <Compile Include="Events\GetPageEventHandler.cs" />
+    <Compile Include="Events\RequestRoutingEventArgs.cs" />
+    <Compile Include="Events\RequestRoutingEventHandler.cs" />
     <Compile Include="NoEmptyPageTemplateFilter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StaticRoutePriorityAttribute.cs" />

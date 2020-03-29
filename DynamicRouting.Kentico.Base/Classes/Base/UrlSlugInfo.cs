@@ -33,13 +33,70 @@ namespace DynamicRouting
             ModuleName = "DynamicRouting.Kentico",
             TouchCacheDependencies = true,
             SupportsCloning = false,
-            AllowDataExport = false,
+            AllowDataExport = true,
             AllowRestore = false,
             DependsOn = new List<ObjectDependency>()
             {
                 new ObjectDependency("UrlSlugNodeID", "cms.node", ObjectDependencyEnum.Required),
             },
+            // Allowing export of Custom Slugs only, any non customized should be auto generated and previous URLs should be in the Document's Alternate Urls
+            ImportExportSettings =
+            {
+                IsExportable = true,
+                WhereCondition = "UrlSlugIsCustom = 1",
+                ObjectTreeLocations = new List<ObjectTreeLocation>()
+                {
+                    // Adds the custom class into a new category in the Global objects section of the export tree
+                    new ObjectTreeLocation(GLOBAL, "DynamicRouting", "CustomizedUrlSlugs"),
+                },
+            },
+            SynchronizationSettings =
+            {
+                LogSynchronization = SynchronizationTypeEnum.LogSynchronization,
+                LogCondition = ShouldCreateSynchronizationTask,
+                ObjectTreeLocations = new List<ObjectTreeLocation>()
+                {
+                    // Adds the custom class into a new category in the Global objects section of the staging tree
+                    new ObjectTreeLocation(GLOBAL, "DynamicRouting", "CustomUrlSlugs")
+                },
+            },
         };
+
+        private static bool ShouldCreateSynchronizationTask(BaseInfo classObj)
+        {
+            UrlSlugInfo UrlSlug = (UrlSlugInfo) classObj;
+            RecursionControl AddedTrigger = new RecursionControl($"UrlSlug_AddedUpdatedCustom_" + UrlSlug.UrlSlugGuid);
+            RecursionControl RemovedTrigger = new RecursionControl($"UrlSlug_RemovedCustom_" + UrlSlug.UrlSlugGuid);
+            RecursionControl IndividualUpdateTrigger = new RecursionControl("UrlSlug_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
+
+            RecursionControl RanOnce = new RecursionControl("ShouldCreateSynchronizationTaskRan_" + UrlSlug.UrlSlugGuid);
+            if (RanOnce.Continue)
+            {
+
+                // If this staging task was from an individual update, only update if the custom was either added, updated, or was uncustomized.
+                if (!IndividualUpdateTrigger.Continue)
+                {
+                    RecursionControl IndividualUpdateTriggerStaging = new RecursionControl("LogStagingTask_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
+                    bool IndividualUpdateTriggeredStaging = IndividualUpdateTriggerStaging.Continue;
+
+                    if (!AddedTrigger.Continue)
+                    {
+                        RecursionControl AddDataTrigger = new RecursionControl($"LogStagingTask_AddedUpdatedCustom_" + UrlSlug.UrlSlugGuid);
+                        bool AddDataTriggered = AddDataTrigger.Continue;
+                        return true;
+                    }
+                    else if (!RemovedTrigger.Continue)
+                    {
+                        RecursionControl RemovedDataTrigger = new RecursionControl($"LogStagingTask_RemovedCustom_" + UrlSlug.UrlSlugGuid);
+                        bool RemovedDataTriggered = RemovedDataTrigger.Continue;
+                        return true;
+                    }
+                    return false;
+                }
+                return true;
+            }
+            return false;
+        }
 
         protected override bool CheckPermissionsInternal(PermissionsEnum permission, string siteName, IUserInfo userInfo, bool exceptionOnFailure)
         {

@@ -459,13 +459,6 @@
     <Compile Include="Classes\Models\NodeUrlSlug.cs" />
     <Compile Include="Classes\Other\DynamicRouteConfiguration.cs" />
     <Compile Include="Classes\Other\UrlSlugCollisionException.cs" />
-    <Compile Include="Events\DynamicUrlEvents.cs" />
-    <Compile Include="Events\GetCultureEventArgs.cs" />
-    <Compile Include="Events\GetCultureEventHandler.cs" />
-    <Compile Include="Events\GetPageEventArgs.cs" />
-    <Compile Include="Events\GetPageEventHandler.cs" />
-    <Compile Include="Events\RequestRoutingEventArgs.cs" />
-    <Compile Include="Events\RequestRoutingEventHandler.cs" />
     <Compile Include="Helpers\DynamicRouteEventHelper.cs" />
     <Compile Include="Helpers\DynamicRouteInternalHelper.cs" />
     <Compile Include="Helpers\DynamicRouteInitializationModule.cs" />

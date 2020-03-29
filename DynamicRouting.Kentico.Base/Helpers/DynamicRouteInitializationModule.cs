@@ -5,9 +5,11 @@ using CMS.DocumentEngine;
 using CMS.EventLog;
 using CMS.Helpers;
 using CMS.MacroEngine;
+using CMS.Membership;
 using CMS.Modules;
 using CMS.Scheduler;
 using CMS.SiteProvider;
+using CMS.Synchronization;
 using CMS.WorkflowEngine;
 using DynamicRouting.Kentico;
 using DynamicRouting.Kentico.Classes;
@@ -35,7 +37,8 @@ namespace DynamicRouting.Kentico
         public void Init()
         {
             // Ensure that the Foreign Keys and Views exist
-            if (ResourceInfoProvider.GetResourceInfo("DynamicRouting.Kentico") != null) { 
+            if (ResourceInfoProvider.GetResourceInfo("DynamicRouting.Kentico") != null)
+            {
                 try
                 {
                     ConnectionHelper.ExecuteNonQuery("DynamicRouting.UrlSlug.InitializeSQLEntities");
@@ -67,11 +70,12 @@ namespace DynamicRouting.Kentico
                     };
                     CheckUrlSlugQueueTask.SetValue("TaskData", "");
                     TaskInfoProvider.SetTaskInfo(CheckUrlSlugQueueTask);
-                } catch(Exception ex)
+                }
+                catch (Exception ex)
                 {
                     EventLogProvider.LogException("DynamimcRouting", "ErrorCreatingUrlSlugQueue", ex, additionalMessage: "Could not create the CheckUrlSlugQueue scheduled task, please create a task with name 'CheckUrlSlugQueue' using assembly 'DynamicRouting.Kentico.DynamicRouteScheduledTasks' to run hourly.");
                 }
-                
+
             }
 
             // Detect Site Culture changes
@@ -105,7 +109,175 @@ namespace DynamicRouting.Kentico
             // Handle if IsCustom was true and is now false to re-build the slug
             UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before_IsCustomRebuild;
             UrlSlugInfo.TYPEINFO.Events.Update.After += UrlSlug_Update_After_IsCustomRebuild;
+
+            // Update Task Title to so we can handle differently depending on the type of update
+            StagingEvents.LogTask.Before += StagingTask_LogTask_Before;
+            StagingEvents.ProcessTask.Before += StagingTask_ProcessTask_Before;
         }
+
+        private void StagingTask_ProcessTask_Before(object sender, StagingSynchronizationEventArgs e)
+        {
+            if (e.ObjectType.Equals(UrlSlugInfo.OBJECT_TYPE, StringComparison.InvariantCultureIgnoreCase))
+            {
+                // Get the URL slug itself
+                UrlSlugInfo UrlSlug = new UrlSlugInfo(e.TaskData.Tables[0].Rows[0]);
+                using (new CMSActionContext()
+                {
+                    LogSynchronization = false,
+                    LogIntegration = false
+                })
+                {
+                    if (e.TaskData.Tables.Contains("urlslugtype"))
+                    {
+                        DataTable SlugType = e.TaskData.Tables["urlslugtype"];
+                        int NewNodeID = TranslateBindingTranslateID(UrlSlug.UrlSlugNodeID, e.TaskData, "cms.node");
+                        // Get the Site's current Url Slug
+                        UrlSlugInfo CurrentUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                            .WhereEquals("UrlSlugNodeID", NewNodeID)
+                            .WhereEquals("UrlSlugCultureCode", UrlSlug.UrlSlugCultureCode)
+                            .FirstOrDefault();
+                        if (SlugType.Rows.Count > 0 && CurrentUrlSlug != null)
+                        {
+                            switch (ValidationHelper.GetString(SlugType.Rows[0]["typecode"], "check").ToLower())
+                            {
+                                case "addupdate":
+                                    if (!CurrentUrlSlug.UrlSlugIsCustom)
+                                    {
+                                        CurrentUrlSlug.UrlSlugIsCustom = true;
+                                        CurrentUrlSlug.UrlSlug = UrlSlug.UrlSlug;
+                                        UrlSlugInfoProvider.SetUrlSlugInfo(CurrentUrlSlug);
+                                    }
+                                    else if (CurrentUrlSlug.UrlSlug != UrlSlug.UrlSlug)
+                                    {
+                                        CurrentUrlSlug.UrlSlug = UrlSlug.UrlSlug;
+                                        UrlSlugInfoProvider.SetUrlSlugInfo(UrlSlug);
+                                    }
+                                    e.TaskHandled = true;
+                                    break;
+                                case "remove":
+                                    if (CurrentUrlSlug.UrlSlugIsCustom)
+                                    {
+                                        CurrentUrlSlug.UrlSlugIsCustom = false;
+                                        UrlSlugInfoProvider.SetUrlSlugInfo(CurrentUrlSlug);
+                                    }
+                                    e.TaskHandled = true;
+                                    break;
+                                case "check":
+                                    bool UpdateCurrentUrlSlug = false;
+                                    if (UrlSlug.UrlSlugIsCustom)
+                                    {
+                                        if (!CurrentUrlSlug.UrlSlugIsCustom)
+                                        {
+                                            CurrentUrlSlug.UrlSlugIsCustom = true;
+                                            UpdateCurrentUrlSlug = true;
+                                        }
+                                        if (CurrentUrlSlug.UrlSlug != UrlSlug.UrlSlug)
+                                        {
+                                            CurrentUrlSlug.UrlSlug = UrlSlug.UrlSlug;
+                                            UpdateCurrentUrlSlug = true;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (CurrentUrlSlug.UrlSlugIsCustom)
+                                        {
+                                            CurrentUrlSlug.UrlSlugIsCustom = false;
+                                            UpdateCurrentUrlSlug = true;
+                                        }
+                                    }
+                                    if (UpdateCurrentUrlSlug)
+                                    {
+                                        UrlSlugInfoProvider.SetUrlSlugInfo(CurrentUrlSlug);
+                                    }
+                                    e.TaskHandled = true;
+                                    break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        public static int TranslateBindingTranslateID(int ItemID, DataSet TaskData, string classname)
+        {
+            DataTable ObjectTranslationTable = TaskData.Tables.Cast<DataTable>().Where(x => x.TableName.ToLower() == "objecttranslation").FirstOrDefault();
+            if (ObjectTranslationTable == null)
+            {
+                EventLogProvider.LogEvent("E", "RelHelper.TranslateBindingTranslateID", "NoObjectTranslationTable", "Could not find an ObjectTranslation table in the Task Data, please make sure to only call this with a task that has an ObjectTranslation table");
+                return -1;
+            }
+            foreach (DataRow ItemDR in ObjectTranslationTable.Rows.Cast<DataRow>()
+                .Where(x => ValidationHelper.GetString(x["ObjectType"], "").ToLower() == classname.ToLower() && ValidationHelper.GetInteger(x["ID"], -1) == ItemID))
+            {
+                int TranslationID = ValidationHelper.GetInteger(ItemDR["ID"], 0);
+                if (ItemID == TranslationID)
+                {
+                    GetIDParameters ItemParams = new GetIDParameters();
+                    if (ValidationHelper.GetGuid(ItemDR["GUID"], Guid.Empty) != Guid.Empty)
+                    {
+                        ItemParams.Guid = (Guid)ItemDR["GUID"];
+                    }
+                    if (!string.IsNullOrWhiteSpace(ValidationHelper.GetString(ItemDR["CodeName"], "")))
+                    {
+                        ItemParams.CodeName = (string)ItemDR["CodeName"];
+                    }
+                    if (ObjectTranslationTable.Columns.Contains("SiteName") && !string.IsNullOrWhiteSpace(ValidationHelper.GetString(ItemDR["SiteName"], "")))
+                    {
+                        int SiteID = SiteInfoProvider.GetSiteID((string)ItemDR["SiteName"]);
+                        if (SiteID > 0)
+                        {
+                            ItemParams.SiteId = SiteID;
+                        }
+                    }
+                    try
+                    {
+                        int NewID = TranslationHelper.GetIDFromDB(ItemParams, classname);
+                        if (NewID > 0)
+                        {
+                            ItemID = NewID;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        EventLogProvider.LogException("RelHelper.TranslateBindingTranslateID", "No Translation Found", ex, additionalMessage: "No Translation found.");
+                        return -1;
+                    }
+                }
+            }
+            return ItemID;
+        }
+
+        private void StagingTask_LogTask_Before(object sender, StagingLogTaskEventArgs e)
+        {
+            if (e.Task.TaskObjectType.Equals(UrlSlugInfo.OBJECT_TYPE, StringComparison.InvariantCultureIgnoreCase))
+            {
+                UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
+                RecursionControl AddedTrigger = new RecursionControl($"LogStagingTask_AddedUpdatedCustom_" + UrlSlug.UrlSlugGuid);
+                RecursionControl RemovedTrigger = new RecursionControl($"LogStagingTask_RemovedCustom_" + UrlSlug.UrlSlugGuid);
+                RecursionControl IndividualUpdateTrigger = new RecursionControl("LogStagingTask_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
+
+                // Alters the Task Data, adding a new 'table' to the task data, this will be used by the processing to know what to do with it.
+                if (!IndividualUpdateTrigger.Continue)
+                {
+                    if (!AddedTrigger.Continue)
+                    {
+                        e.Task.TaskTitle.Replace("Update Url Slug", "Add or Update Custom Url Slug");
+                        e.Task.TaskData = e.Task.TaskData.Replace("</NewDataSet>", "<urlslugtype><typecode>addupdate</typecode></urlslugtype></NewDataSet>");
+                    }
+                    else if (!RemovedTrigger.Continue)
+                    {
+                        e.Task.TaskTitle.Replace("Update Url Slug", "Remove Custom Url Slug");
+                        e.Task.TaskData = e.Task.TaskData.Replace("</NewDataSet>", "<urlslugtype><typecode>remove</typecode></urlslugtype></NewDataSet>");
+                    }
+                }
+                else
+                {
+                    e.Task.TaskData = e.Task.TaskData.Replace("</NewDataSet>", "<urlslugtype><typecode>check</typecode></urlslugtype></NewDataSet>");
+                }
+            }
+        }
+
+
 
         private void UrlSlug_Update_After_IsCustomRebuild(object sender, ObjectEventArgs e)
         {
@@ -115,8 +287,15 @@ namespace DynamicRouting.Kentico
             {
                 try
                 {
-                    // If Continue is false, then the Before update shows this needs to be rebuilt.
-                    DynamicRouteInternalHelper.RebuildRoutesByNode(UrlSlug.UrlSlugNodeID);
+                    using (new CMSActionContext()
+                    {
+                        LogSynchronization = false,
+                        LogIntegration = false
+                    })
+                    {
+                        // If Continue is false, then the Before update shows this needs to be rebuilt.
+                        DynamicRouteInternalHelper.RebuildRoutesByNode(UrlSlug.UrlSlugNodeID);
+                    }
                 }
                 catch (UrlSlugCollisionException ex)
                 {
@@ -133,6 +312,88 @@ namespace DynamicRouting.Kentico
         private void UrlSlug_Update_Before_IsCustomRebuild(object sender, ObjectEventArgs e)
         {
             UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
+            TreeNode Node = new DocumentQuery()
+                    .WhereEquals("NodeID", UrlSlug.UrlSlugNodeID)
+                    .Columns("NodeSiteID, NodeAliasPath, NodeGuid, NodeAlias")
+                    .FirstOrDefault();
+
+            // First check if there is already a custom URL slug, if so cancel
+            if (UrlSlug.UrlSlugIsCustom)
+            {
+
+                var ExistingMatchingSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                    .WhereNotEquals("UrlSlugNodeID", UrlSlug.UrlSlugNodeID)
+                    .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
+                    .Where($"UrlSlugNodeID in (Select NodeID from CMS_Tree where NodeSiteID = {Node.NodeSiteID})")
+                    .Columns("UrlSlugNodeID")
+                    .FirstOrDefault();
+                if (ExistingMatchingSlug != null)
+                {
+                    TreeNode ConflictNode = new DocumentQuery()
+                    .WhereEquals("NodeID", ExistingMatchingSlug.UrlSlugNodeID)
+                    .Columns("NodeSiteID, NodeAliasPath")
+                    .FirstOrDefault();
+                    var Error = new NotSupportedException($"This custom URL Slug '{UrlSlug.UrlSlug}' on {Node.NodeAliasPath} is already the pattern of an existing document ({ConflictNode.NodeAliasPath}).  Operation aborted.");
+                    EventLogProvider.LogException("DynamicRouting", "CustomUrlSlugConflict", Error, Node.NodeSiteID);
+                    throw Error;
+                }
+            }
+
+            // If it was not custom and now is, create a "Customized" staging task.
+            RecursionControl IndividualUpdateTrigger = new RecursionControl("UrlSlug_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
+            // Both trigger, and also if this is the first run through run this check
+            if (IndividualUpdateTrigger.Continue)
+            {
+                if (UrlSlug.UrlSlugIsCustom && !ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), true)
+                    ||
+                    UrlSlug.UrlSlug != ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug)
+                    )
+                {
+                    RecursionControl AddedUpdatedTrigger = new RecursionControl("UrlSlug_AddedUpdatedCustom_" + UrlSlug.UrlSlugGuid);
+                    bool AddedUpdatedTriggered = AddedUpdatedTrigger.Continue;
+
+                    /*if (StagingTaskInfoProvider.LogContentChanges(SiteInfoProvider.GetSiteName(Node.NodeSiteID)))
+                    {
+                        StagingTaskInfo CustomizedUrlSlugTask = new StagingTaskInfo()
+                        {
+                            TaskTitle = $"Custom Url Slug for '{Node.NodeAlias}' created/updated",
+                            TaskSiteID = Node.NodeSiteID,
+                            TaskType = TaskTypeEnum.UpdateObject,
+                            TaskObjectType = UrlSlugInfo.OBJECT_TYPE,
+                            TaskObjectID = DataClassInfoProvider.GetDataClassInfo(UrlSlugInfo.OBJECT_TYPE).ClassID,
+                            TaskServers = string.Join(";", ServerInfoProvider.GetServers().WhereEquals("ServerEnabled", true).Columns("ServerName").Select(x => x.ServerName)),
+                            TaskTime = DateTime.Now
+                        };
+                        CustomizedUrlSlugTask.TaskData = GetUrlSlugTaskData(UrlSlug, Node);
+                        StagingTaskInfoProvider.SetTaskInfo(CustomizedUrlSlugTask);
+                        StagingTaskUserInfoProvider.AddStagingTaskToUser(CustomizedUrlSlugTask.TaskID, MembershipContext.AuthenticatedUser.UserID);
+                        SynchronizationInfoProvider.CreateSynchronizationRecords(CustomizedUrlSlugTask.TaskID, ServerInfoProvider.GetServers().WhereEquals("ServerEnabled", true).Columns("ServerID").Select(x => x.ServerID));
+                    }*/
+                }
+                if (!UrlSlug.UrlSlugIsCustom && ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), false))
+                {
+                    RecursionControl RemovedTrigger = new RecursionControl("UrlSlug_RemovedCustom_" + UrlSlug.UrlSlugGuid);
+                    bool RemovedTriggered = RemovedTrigger.Continue;
+                    /*
+                    if (StagingTaskInfoProvider.LogContentChanges(SiteInfoProvider.GetSiteName(Node.NodeSiteID)))
+                    {
+                        StagingTaskInfo CustomizedUrlSlugTask = new StagingTaskInfo()
+                        {
+                            TaskTitle = $"Custom Url Slug for '{Node.NodeAlias}' removed",
+                            TaskSiteID = Node.NodeSiteID,
+                            TaskType = TaskTypeEnum.UpdateObject,
+                            TaskObjectType = UrlSlugInfo.OBJECT_TYPE,
+                            TaskObjectID = DataClassInfoProvider.GetDataClassInfo(UrlSlugInfo.OBJECT_TYPE).ClassID,
+                            TaskServers = string.Join(";", ServerInfoProvider.GetServers().WhereEquals("ServerEnabled", true).Columns("ServerName").Select(x => x.ServerName)),
+                            TaskTime = DateTime.Now
+                        };
+                        CustomizedUrlSlugTask.TaskData = GetUrlSlugTaskData(UrlSlug, Node);
+                        StagingTaskInfoProvider.SetTaskInfo(CustomizedUrlSlugTask);
+                        StagingTaskUserInfoProvider.AddStagingTaskToUser(CustomizedUrlSlugTask.TaskID, MembershipContext.AuthenticatedUser.UserID);
+                        SynchronizationInfoProvider.CreateSynchronizationRecords(CustomizedUrlSlugTask.TaskID, ServerInfoProvider.GetServers().WhereEquals("ServerEnabled", true).Columns("ServerID").Select(x => x.ServerID));
+                    }*/
+                }
+            }
 
             // If the Url Slug is custom or was custom, then need to rebuild after.
             if (UrlSlug.UrlSlugIsCustom || ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), UrlSlug.UrlSlugIsCustom))
@@ -143,6 +404,33 @@ namespace DynamicRouting.Kentico
             }
         }
 
+        private string GetUrlSlugTaskData(UrlSlugInfo urlSlug, TreeNode node)
+        {
+            TranslationHelper NodeBoundObjectTableHelper = new TranslationHelper();
+
+            //DataSet UrlSlugDS = new DataSet("NewDataSet");
+            //DataTable UrlSlugTable = new DataTable(UrlSlugInfo.OBJECT_TYPE.ToLower().Replace(".", "_"));
+
+            // Create Base Dataset of UrlSlug
+            DataSet UrlSlugDS = SynchronizationHelper.GetObjectData(OperationTypeEnum.Synchronization, urlSlug, false, false, NodeBoundObjectTableHelper);
+
+            // Create Translation Table of Node
+            DataSet NodeBoundObjectData = SynchronizationHelper.GetObjectsData(OperationTypeEnum.Synchronization, node, string.Format($"NodeID = {node.NodeID}"), null, true, false, NodeBoundObjectTableHelper);
+            if (NodeBoundObjectTableHelper.TranslationTable != null && NodeBoundObjectTableHelper.TranslationTable.Rows.Count > 0)
+            {
+                NodeBoundObjectData.Tables.Add(NodeBoundObjectTableHelper.TranslationTable);
+            }
+
+            // Convert to XML and Back, this makes the Columns all type string so the transfer table works
+            DataSet NodeRegionObjectDataHolder = new DataSet();
+            NodeRegionObjectDataHolder.ReadXml(new StringReader(NodeBoundObjectData.GetXml()));
+            if (!DataHelper.DataSourceIsEmpty(NodeRegionObjectDataHolder) && NodeRegionObjectDataHolder.Tables.Count > 0)
+            {
+                DataHelper.TransferTables(UrlSlugDS, NodeRegionObjectDataHolder);
+            }
+
+            return UrlSlugDS.GetXml();
+        }
 
         private void Document_Publish_After(object sender, WorkflowEventArgs e)
         {
@@ -248,7 +536,8 @@ namespace DynamicRouting.Kentico
                     }
                 }
                 // Create new one if there are no other Url Slugs with the same pattern for that node
-                else if (CultureSiblingUrlSlug == null) {
+                else if (CultureSiblingUrlSlug == null)
+                {
                     AlternativeUrl = new AlternativeUrlInfo()
                     {
                         AlternativeUrlDocumentID = Document.DocumentID,
@@ -331,13 +620,13 @@ namespace DynamicRouting.Kentico
                     .WhereEquals("AlternativeUrlUrl", NewUrlSlug)
                     .WhereNotIn("AlternativeUrlDocumentID", AllDocumentIDs)
                     .ToList();
-                    
+
                 // Add warning about conflict.
                 if (AltUrlsOnOtherNodes.Count > 0)
                 {
                     EventLogProvider.LogEvent("W", "DynamicRouting", "AlternateUrlConflict", $"Another page with an alternate Url matching {UrlSlug.UrlSlug} was found, please adjust and correct.");
                 }
-                
+
             }
             catch (Exception ex)
             {
@@ -430,7 +719,7 @@ namespace DynamicRouting.Kentico
             }
             catch (Exception ex)
             {
-                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error",$"Occurred on Document Move Before for Node {e.Node.NodeAliasPath}");
+                LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Document Move Before for Node {e.Node.NodeAliasPath}");
             }
         }
 

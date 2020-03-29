@@ -17,22 +17,18 @@ namespace DynamicRouting.Kentico
     public static class DynamicRouteHelper
     {
         /// <summary>
-        /// Gets the CMS Page using Dynamic Routing, returning the culture variation that either matches the given culture or the Slug's culture, or the default site culture if not found.
+        /// Gets the CMS Page using the given Url Slug.
         /// </summary>
-        /// <param name="Url">The Url (part after the domain), if empty will use the Current Request</param>
+        /// <param name="UrlSlug">The UrlSlug to look up (part after the domain)</param>
         /// <param name="Culture">The Culture, not needed if the Url contains the culture that the UrlSlug has as part of it's generation.</param>
         /// <param name="SiteName">The Site Name, defaults to current site.</param>
         /// <param name="Columns">List of columns you wish to include in the data returned.</param>
         /// <returns>The Page that matches the Url Slug, for the given or matching culture (or default culture if one isn't found).</returns>
-        public static ITreeNode GetPage(string Url = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null)
+        public static ITreeNode GetPage(string UrlSlug = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null)
         {
             // Load defaults
             SiteName = (!string.IsNullOrWhiteSpace(SiteName) ? SiteName : DynamicRouteInternalHelper.SiteContextSafe().SiteName);
             string DefaultCulture = DynamicRouteInternalHelper.SiteContextSafe().DefaultVisitorCulture;
-            if (string.IsNullOrWhiteSpace(Url))
-            {
-                Url = EnvironmentHelper.GetUrl(HttpContext.Current.Request.Url.AbsolutePath, HttpContext.Current.Request.ApplicationPath, SiteName);
-            }
 
             // Handle Preview, during Route Config the Preview isn't available and isn't really needed, so ignore the thrown exception
             bool PreviewEnabled = false;
@@ -42,144 +38,87 @@ namespace DynamicRouting.Kentico
             }
             catch (InvalidOperationException) { }
 
-            GetCultureEventArgs CultureArgs = new GetCultureEventArgs()
-            {
-                DefaultCulture = DefaultCulture,
-                SiteName = SiteName,
-                Request = HttpContext.Current.Request,
-                PreviewEnabled = PreviewEnabled,
-                Culture = Culture
-            };
-
-            using (var DynamicRoutingGetCultureTaskHandler = DynamicRoutingEvents.GetCulture.StartEvent(CultureArgs))
-            {
-                // If culture not set, use the LocalizationContext.CurrentCulture
-                if (string.IsNullOrWhiteSpace(CultureArgs.Culture))
-                {
-                    try
-                    {
-                        CultureArgs.Culture = LocalizationContext.CurrentCulture.CultureName;
-                    }
-                    catch (Exception) { }
-                }
-
-                // if that fails then use the System.Globalization.CultureInfo
-                if (string.IsNullOrWhiteSpace(CultureArgs.Culture))
-                {
-                    try
-                    {
-                        CultureArgs.Culture = System.Globalization.CultureInfo.CurrentCulture.Name;
-                    }
-                    catch (Exception) { }
-                }
-
-                DynamicRoutingGetCultureTaskHandler.FinishEvent();
-            }
-
             // set the culture
-            Culture = CultureArgs.Culture;
+            if(string.IsNullOrWhiteSpace(Culture)) { 
+                Culture = LocalizationContext.CurrentCulture.CultureName;
+            }
 
             // Convert Columns to 
             string ColumnsVal = Columns != null ? string.Join(",", Columns.Distinct()) : "*";
 
-            // Create GetPageEventArgs Event ARgs
-            GetPageEventArgs Args = new GetPageEventArgs()
-            {
-                RelativeUrl = Url,
-                Culture = Culture,
-                DefaultCulture = DefaultCulture,
-                SiteName = SiteName,
-                PreviewEnabled = PreviewEnabled,
-                ColumnsVal = ColumnsVal,
-                Request = HttpContext.Current.Request
-            };
-
             // Run any GetPage Event hooks which allow the users to set the Found Page
             ITreeNode FoundPage = null;
-            using (var DynamicRoutingGetPageTaskHandler = DynamicRoutingEvents.GetPage.StartEvent(Args))
+
+            try
             {
-                if (Args.FoundPage == null)
+                // Get Page based on Url
+                FoundPage = CacheHelper.Cache<TreeNode>(cs =>
                 {
-                    try
-                    {
-                        // Get Page based on Url
-                        Args.FoundPage = CacheHelper.Cache<TreeNode>(cs =>
-                        {
-                            // Using custom query as Kentico's API was not properly handling a Join and where.
-                            DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
-                        {
-                            {"@Url", Url },
+                    // Using custom query as Kentico's API was not properly handling a Join and where.
+                    DataTable NodeTable = ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlug.GetDocumentsByUrlSlug", new QueryDataParameters()
+                {
+                            {"@Url", UrlSlug },
                             {"@Culture", Culture },
                             {"@DefaultCulture", DefaultCulture },
                             {"@SiteName", SiteName },
                             {"@PreviewEnabled", PreviewEnabled }
-                        }, topN: 1, columns: "DocumentID, ClassName").Tables[0];
-                            if (NodeTable.Rows.Count > 0)
+                }, topN: 1, columns: "DocumentID, ClassName").Tables[0];
+                    if (NodeTable.Rows.Count > 0)
+                    {
+                        int DocumentID = ValidationHelper.GetInteger(NodeTable.Rows[0]["DocumentID"], 0);
+                        string ClassName = ValidationHelper.GetString(NodeTable.Rows[0]["ClassName"], "");
+
+                        DocumentQuery Query = DocumentHelper.GetDocuments(ClassName)
+                                .WhereEquals("DocumentID", DocumentID);
+
+                        // Handle Columns
+                        if (!string.IsNullOrWhiteSpace(ColumnsVal))
+                        {
+                            Query.Columns(ColumnsVal);
+                        }
+
+                        // Handle Preview
+                        if (PreviewEnabled)
+                        {
+                            Query.LatestVersion(true)
+                                .Published(false);
+                        }
+                        else
+                        {
+                            Query.PublishedVersion(true);
+                        }
+
+                        TreeNode Page = Query.FirstOrDefault();
+
+                        // Cache dependencies on the Url Slugs and also the DocumentID if available.
+                        if (cs.Cached)
+                        {
+                            if (Page != null)
                             {
-                                int DocumentID = ValidationHelper.GetInteger(NodeTable.Rows[0]["DocumentID"], 0);
-                                string ClassName = ValidationHelper.GetString(NodeTable.Rows[0]["ClassName"], "");
-
-                                DocumentQuery Query = DocumentHelper.GetDocuments(ClassName)
-                                        .WhereEquals("DocumentID", DocumentID);
-
-                                // Handle Columns
-                                if (!string.IsNullOrWhiteSpace(ColumnsVal))
-                                {
-                                    Query.Columns(ColumnsVal);
-                                }
-
-                                // Handle Preview
-                                if (PreviewEnabled)
-                                {
-                                    Query.LatestVersion(true)
-                                        .Published(false);
-                                }
-                                else
-                                {
-                                    Query.PublishedVersion(true);
-                                }
-
-                                TreeNode Page = Query.FirstOrDefault();
-
-                                // Cache dependencies on the Url Slugs and also the DocumentID if available.
-                                if (cs.Cached)
-                                {
-                                    if (Page != null)
-                                    {
-                                        cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
+                                cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
                                     "dynamicrouting.urlslug|all",
                                     "dynamicrouting.versionhistoryurlslug|all",
                                     "dynamicrouting.versionhistoryurlslug|bydocumentid|"+Page.DocumentID,
                                     "documentid|" + Page.DocumentID,  });
-                                    }
-                                    else
-                                    {
-                                        cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "dynamicrouting.urlslug|all", "dynamicrouting.versionhistoryurlslug|all" });
-                                    }
-
-                                }
-
-                                // Return Page Data
-                                return Query.FirstOrDefault();
                             }
                             else
                             {
-                                return null;
+                                cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "dynamicrouting.urlslug|all", "dynamicrouting.versionhistoryurlslug|all" });
                             }
-                        }, new CacheSettings(1440, "DynamicRoutine.GetPage", Url, Culture, DefaultCulture, SiteName, PreviewEnabled, ColumnsVal));
+
+                        }
+
+                        // Return Page Data
+                        return Query.FirstOrDefault();
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        // Add exception so they can handle
-                        DynamicRoutingGetPageTaskHandler.EventArguments.ExceptionOnLookup = ex;
+                        return null;
                     }
-                }
-
-                // Finish event, this will trigger the After
-                DynamicRoutingGetPageTaskHandler.FinishEvent();
-
-                // Return whatever Found Page
-                FoundPage = DynamicRoutingGetPageTaskHandler.EventArguments.FoundPage;
+                }, new CacheSettings(1440, "DynamicRoutine.GetPageMother", UrlSlug, Culture, DefaultCulture, SiteName, PreviewEnabled, ColumnsVal));
+            }
+            catch (Exception ex)
+            {
             }
             return FoundPage;
         }
