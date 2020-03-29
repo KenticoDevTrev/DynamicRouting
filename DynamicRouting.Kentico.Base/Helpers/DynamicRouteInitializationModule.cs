@@ -132,15 +132,18 @@ namespace DynamicRouting.Kentico
                 if (!string.IsNullOrWhiteSpace(UrlSlug.UrlSlugCultureCode))
                 {
                     DocQuery.Culture(UrlSlug.UrlSlugCultureCode);
-                } else
+                }
+                else
                 {
                     DocQuery.CombineWithDefaultCulture();
                     DocQuery.CombineWithAnyCulture();
                 }
                 var Node = DocQuery.FirstOrDefault();
-                if(UrlSlug.UrlSlugIsCustom) { 
+                if (UrlSlug.UrlSlugIsCustom)
+                {
                     e.Task.TaskTitle = $"Add Custom Url Slug '{UrlSlug.UrlSlug}' for page {Node.NodeAlias} [{Node.DocumentCulture}]";
-                } else
+                }
+                else
                 {
                     e.Task.TaskTitle = $"Restore Url Slug for page {Node.NodeAlias} [{Node.DocumentCulture}] to default";
                 }
@@ -164,50 +167,40 @@ namespace DynamicRouting.Kentico
             {
                 // Get the URL slug itself
                 UrlSlugInfo UrlSlug = new UrlSlugInfo(e.TaskData.Tables[0].Rows[0]);
-                using (new CMSActionContext()
-                {
-                    LogSynchronization = false,
-                    LogIntegration = false
-                })
-                {
-                    if (e.TaskData.Tables.Contains("urlslugtype"))
-                    {
-                        int NewNodeID = TranslateBindingTranslateID(UrlSlug.UrlSlugNodeID, e.TaskData, "cms.node");
-                        // Get the Site's current Url Slug
-                        UrlSlugInfo CurrentUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
-                            .WhereEquals("UrlSlugNodeID", NewNodeID)
-                            .WhereEquals("UrlSlugCultureCode", UrlSlug.UrlSlugCultureCode)
-                            .FirstOrDefault();
+                int NewNodeID = TranslateBindingTranslateID(UrlSlug.UrlSlugNodeID, e.TaskData, "cms.node");
+                // Get the Site's current Url Slug
+                UrlSlugInfo CurrentUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
+                    .WhereEquals("UrlSlugNodeID", NewNodeID)
+                    .WhereEquals("UrlSlugCultureCode", UrlSlug.UrlSlugCultureCode)
+                    .FirstOrDefault();
 
-                        bool UpdateCurrentUrlSlug = false;
-                        if (UrlSlug.UrlSlugIsCustom)
-                        {
-                            if (!CurrentUrlSlug.UrlSlugIsCustom)
-                            {
-                                CurrentUrlSlug.UrlSlugIsCustom = true;
-                                UpdateCurrentUrlSlug = true;
-                            }
-                            if (CurrentUrlSlug.UrlSlug != UrlSlug.UrlSlug)
-                            {
-                                CurrentUrlSlug.UrlSlug = UrlSlug.UrlSlug;
-                                UpdateCurrentUrlSlug = true;
-                            }
-                        }
-                        else
-                        {
-                            if (CurrentUrlSlug.UrlSlugIsCustom)
-                            {
-                                CurrentUrlSlug.UrlSlugIsCustom = false;
-                                UpdateCurrentUrlSlug = true;
-                            }
-                        }
-                        if (UpdateCurrentUrlSlug)
-                        {
-                            UrlSlugInfoProvider.SetUrlSlugInfo(CurrentUrlSlug);
-                        }
-                        e.TaskHandled = true;
+                bool UpdateCurrentUrlSlug = false;
+                if (UrlSlug.UrlSlugIsCustom)
+                {
+                    if (!CurrentUrlSlug.UrlSlugIsCustom)
+                    {
+                        CurrentUrlSlug.UrlSlugIsCustom = true;
+                        UpdateCurrentUrlSlug = true;
+                    }
+                    if (CurrentUrlSlug.UrlSlug != UrlSlug.UrlSlug)
+                    {
+                        CurrentUrlSlug.UrlSlug = UrlSlug.UrlSlug;
+                        UpdateCurrentUrlSlug = true;
                     }
                 }
+                else
+                {
+                    if (CurrentUrlSlug.UrlSlugIsCustom)
+                    {
+                        CurrentUrlSlug.UrlSlugIsCustom = false;
+                        UpdateCurrentUrlSlug = true;
+                    }
+                }
+                if (UpdateCurrentUrlSlug)
+                {
+                    UrlSlugInfoProvider.SetUrlSlugInfo(CurrentUrlSlug);
+                }
+                e.TaskHandled = true;
             }
         }
 
