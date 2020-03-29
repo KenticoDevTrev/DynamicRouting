@@ -64,43 +64,16 @@ namespace DynamicRouting
 
         private static bool ShouldCreateSynchronizationTask(BaseInfo classObj)
         {
-            UrlSlugInfo UrlSlug = (UrlSlugInfo) classObj;
-            RecursionControl AddedTrigger = new RecursionControl($"UrlSlug_AddedUpdatedCustom_" + UrlSlug.UrlSlugGuid);
-            RecursionControl RemovedTrigger = new RecursionControl($"UrlSlug_RemovedCustom_" + UrlSlug.UrlSlugGuid);
-            RecursionControl IndividualUpdateTrigger = new RecursionControl("UrlSlug_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
-
-            RecursionControl RanOnce = new RecursionControl("ShouldCreateSynchronizationTaskRan_" + UrlSlug.UrlSlugGuid);
-            if (RanOnce.Continue)
-            {
-
-                // If this staging task was from an individual update, only update if the custom was either added, updated, or was uncustomized.
-                if (!IndividualUpdateTrigger.Continue)
-                {
-                    RecursionControl IndividualUpdateTriggerStaging = new RecursionControl("LogStagingTask_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
-                    bool IndividualUpdateTriggeredStaging = IndividualUpdateTriggerStaging.Continue;
-
-                    if (!AddedTrigger.Continue)
-                    {
-                        RecursionControl AddDataTrigger = new RecursionControl($"LogStagingTask_AddedUpdatedCustom_" + UrlSlug.UrlSlugGuid);
-                        bool AddDataTriggered = AddDataTrigger.Continue;
-                        return true;
-                    }
-                    else if (!RemovedTrigger.Continue)
-                    {
-                        RecursionControl RemovedDataTrigger = new RecursionControl($"LogStagingTask_RemovedCustom_" + UrlSlug.UrlSlugGuid);
-                        bool RemovedDataTriggered = RemovedDataTrigger.Continue;
-                        return true;
-                    }
-                    return false;
-                }
-                return true;
-            }
-            return false;
+            // Ignore any Url Slugs that should be ignored.  
+            // Only Url Slugs that are either made customized, the custom Url was modified, was Un-customized, or if this task was generated from the Staging Module in which case every Url Slug will be checked.
+            // These staging tasks are manually handled since non-customized Url Slugs are dynamically generated based on the url Pattern of the page type.
+            UrlSlugInfo UrlSlug = (UrlSlugInfo)classObj;
+            return !DynamicRouteInternalHelper.ShouldIgnoreStagingTaskOfUrlSlug(UrlSlug.UrlSlugID);
         }
 
         protected override bool CheckPermissionsInternal(PermissionsEnum permission, string siteName, IUserInfo userInfo, bool exceptionOnFailure)
         {
-            switch(permission)
+            switch (permission)
             {
                 case PermissionsEnum.Read:
                     return userInfo.IsAuthorizedPerResource("DynamicRouting.Kentico", "ManageUrlSlug", siteName, exceptionOnFailure) ||
@@ -119,7 +92,7 @@ namespace DynamicRouting
                            base.CheckPermissionsInternal(permission, siteName, userInfo, exceptionOnFailure);
                 default:
                     return base.CheckPermissionsInternal(permission, siteName, userInfo, exceptionOnFailure);
-            }    
+            }
         }
 
 

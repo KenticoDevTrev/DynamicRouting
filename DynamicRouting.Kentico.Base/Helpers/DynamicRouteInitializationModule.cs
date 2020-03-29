@@ -111,8 +111,27 @@ namespace DynamicRouting.Kentico
             UrlSlugInfo.TYPEINFO.Events.Update.After += UrlSlug_Update_After_IsCustomRebuild;
 
             // Update Task Title to so we can handle differently depending on the type of update
-            StagingEvents.LogTask.Before += StagingTask_LogTask_Before;
+            StagingEvents.LogTask.Before += StagingEvent_LogTask_Before;
             StagingEvents.ProcessTask.Before += StagingTask_ProcessTask_Before;
+        }
+
+        private void StagingEvent_LogTask_Before(object sender, StagingLogTaskEventArgs e)
+        {
+            if (e.Task.TaskObjectType.Equals(UrlSlugInfo.OBJECT_TYPE, StringComparison.InvariantCultureIgnoreCase))
+            {
+                UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
+                RecursionControl IndividualUpdateTrigger = new RecursionControl("UrlSlug_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
+
+                // If this staging task was from an individual update, only update if the custom was either added, updated, or was uncustomized.
+                if (!IndividualUpdateTrigger.Continue)
+                {
+                    RecursionControl CreateStagingTask = new RecursionControl("UrlSlug_ShouldCreateStagingTask_" + UrlSlug.UrlSlugGuid);
+                    if (!CreateStagingTask.Continue)
+                    {
+                        e.Task.TaskTitle += " - Check";
+                    }
+                }
+            }
         }
 
         private void StagingTask_ProcessTask_Before(object sender, StagingSynchronizationEventArgs e)
@@ -247,38 +266,6 @@ namespace DynamicRouting.Kentico
             return ItemID;
         }
 
-        private void StagingTask_LogTask_Before(object sender, StagingLogTaskEventArgs e)
-        {
-            if (e.Task.TaskObjectType.Equals(UrlSlugInfo.OBJECT_TYPE, StringComparison.InvariantCultureIgnoreCase))
-            {
-                UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
-                RecursionControl AddedTrigger = new RecursionControl($"LogStagingTask_AddedUpdatedCustom_" + UrlSlug.UrlSlugGuid);
-                RecursionControl RemovedTrigger = new RecursionControl($"LogStagingTask_RemovedCustom_" + UrlSlug.UrlSlugGuid);
-                RecursionControl IndividualUpdateTrigger = new RecursionControl("LogStagingTask_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
-
-                // Alters the Task Data, adding a new 'table' to the task data, this will be used by the processing to know what to do with it.
-                if (!IndividualUpdateTrigger.Continue)
-                {
-                    if (!AddedTrigger.Continue)
-                    {
-                        e.Task.TaskTitle.Replace("Update Url Slug", "Add or Update Custom Url Slug");
-                        e.Task.TaskData = e.Task.TaskData.Replace("</NewDataSet>", "<urlslugtype><typecode>addupdate</typecode></urlslugtype></NewDataSet>");
-                    }
-                    else if (!RemovedTrigger.Continue)
-                    {
-                        e.Task.TaskTitle.Replace("Update Url Slug", "Remove Custom Url Slug");
-                        e.Task.TaskData = e.Task.TaskData.Replace("</NewDataSet>", "<urlslugtype><typecode>remove</typecode></urlslugtype></NewDataSet>");
-                    }
-                }
-                else
-                {
-                    e.Task.TaskData = e.Task.TaskData.Replace("</NewDataSet>", "<urlslugtype><typecode>check</typecode></urlslugtype></NewDataSet>");
-                }
-            }
-        }
-
-
-
         private void UrlSlug_Update_After_IsCustomRebuild(object sender, ObjectEventArgs e)
         {
             UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
@@ -339,59 +326,32 @@ namespace DynamicRouting.Kentico
                 }
             }
 
-            // If it was not custom and now is, create a "Customized" staging task.
-            RecursionControl IndividualUpdateTrigger = new RecursionControl("UrlSlug_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
-            // Both trigger, and also if this is the first run through run this check
-            if (IndividualUpdateTrigger.Continue)
+
+            // If no UrlSlugID, it's the original creation, and it will always be the default Url Slug (not customized)
+            
+            // Delete existing ignore records
+            DynamicRouteInternalHelper.RemoveIgnoreStagingTaskOfUrlSlug(UrlSlug.UrlSlugID);
+
+            if (UrlSlug.UrlSlugID > 0 && CMSActionContext.CurrentLogSynchronization)
             {
-                if (UrlSlug.UrlSlugIsCustom && !ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), true)
+                // If the staging task Should be created
+                if (
+                    (UrlSlug.UrlSlugIsCustom && !ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), true))
                     ||
-                    UrlSlug.UrlSlug != ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug)
+                    (!UrlSlug.UrlSlugIsCustom && ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), false))
+                    ||
+                    (UrlSlug.UrlSlugIsCustom && ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), false) && UrlSlug.UrlSlug != ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug))
                     )
                 {
-                    RecursionControl AddedUpdatedTrigger = new RecursionControl("UrlSlug_AddedUpdatedCustom_" + UrlSlug.UrlSlugGuid);
-                    bool AddedUpdatedTriggered = AddedUpdatedTrigger.Continue;
-
-                    /*if (StagingTaskInfoProvider.LogContentChanges(SiteInfoProvider.GetSiteName(Node.NodeSiteID)))
-                    {
-                        StagingTaskInfo CustomizedUrlSlugTask = new StagingTaskInfo()
-                        {
-                            TaskTitle = $"Custom Url Slug for '{Node.NodeAlias}' created/updated",
-                            TaskSiteID = Node.NodeSiteID,
-                            TaskType = TaskTypeEnum.UpdateObject,
-                            TaskObjectType = UrlSlugInfo.OBJECT_TYPE,
-                            TaskObjectID = DataClassInfoProvider.GetDataClassInfo(UrlSlugInfo.OBJECT_TYPE).ClassID,
-                            TaskServers = string.Join(";", ServerInfoProvider.GetServers().WhereEquals("ServerEnabled", true).Columns("ServerName").Select(x => x.ServerName)),
-                            TaskTime = DateTime.Now
-                        };
-                        CustomizedUrlSlugTask.TaskData = GetUrlSlugTaskData(UrlSlug, Node);
-                        StagingTaskInfoProvider.SetTaskInfo(CustomizedUrlSlugTask);
-                        StagingTaskUserInfoProvider.AddStagingTaskToUser(CustomizedUrlSlugTask.TaskID, MembershipContext.AuthenticatedUser.UserID);
-                        SynchronizationInfoProvider.CreateSynchronizationRecords(CustomizedUrlSlugTask.TaskID, ServerInfoProvider.GetServers().WhereEquals("ServerEnabled", true).Columns("ServerID").Select(x => x.ServerID));
-                    }*/
+                    // Staging task should be created, so proceed as normal
                 }
-                if (!UrlSlug.UrlSlugIsCustom && ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), false))
+                else
                 {
-                    RecursionControl RemovedTrigger = new RecursionControl("UrlSlug_RemovedCustom_" + UrlSlug.UrlSlugGuid);
-                    bool RemovedTriggered = RemovedTrigger.Continue;
-                    /*
-                    if (StagingTaskInfoProvider.LogContentChanges(SiteInfoProvider.GetSiteName(Node.NodeSiteID)))
+                    // Staging task should not be created, add entry so this task won't be generated
+                    UrlSlugStagingTaskIgnoreInfoProvider.SetUrlSlugStagingTaskIgnoreInfo(new UrlSlugStagingTaskIgnoreInfo()
                     {
-                        StagingTaskInfo CustomizedUrlSlugTask = new StagingTaskInfo()
-                        {
-                            TaskTitle = $"Custom Url Slug for '{Node.NodeAlias}' removed",
-                            TaskSiteID = Node.NodeSiteID,
-                            TaskType = TaskTypeEnum.UpdateObject,
-                            TaskObjectType = UrlSlugInfo.OBJECT_TYPE,
-                            TaskObjectID = DataClassInfoProvider.GetDataClassInfo(UrlSlugInfo.OBJECT_TYPE).ClassID,
-                            TaskServers = string.Join(";", ServerInfoProvider.GetServers().WhereEquals("ServerEnabled", true).Columns("ServerName").Select(x => x.ServerName)),
-                            TaskTime = DateTime.Now
-                        };
-                        CustomizedUrlSlugTask.TaskData = GetUrlSlugTaskData(UrlSlug, Node);
-                        StagingTaskInfoProvider.SetTaskInfo(CustomizedUrlSlugTask);
-                        StagingTaskUserInfoProvider.AddStagingTaskToUser(CustomizedUrlSlugTask.TaskID, MembershipContext.AuthenticatedUser.UserID);
-                        SynchronizationInfoProvider.CreateSynchronizationRecords(CustomizedUrlSlugTask.TaskID, ServerInfoProvider.GetServers().WhereEquals("ServerEnabled", true).Columns("ServerID").Select(x => x.ServerID));
-                    }*/
+                        UrlSlugStagingTaskIgnoreUrlSlugID = UrlSlug.UrlSlugID
+                    });
                 }
             }
 
@@ -402,34 +362,6 @@ namespace DynamicRouting.Kentico
                 RecursionControl Trigger = new RecursionControl("UrlSlugNoLongerCustom_" + UrlSlug.UrlSlugGuid);
                 var Triggered = Trigger.Continue;
             }
-        }
-
-        private string GetUrlSlugTaskData(UrlSlugInfo urlSlug, TreeNode node)
-        {
-            TranslationHelper NodeBoundObjectTableHelper = new TranslationHelper();
-
-            //DataSet UrlSlugDS = new DataSet("NewDataSet");
-            //DataTable UrlSlugTable = new DataTable(UrlSlugInfo.OBJECT_TYPE.ToLower().Replace(".", "_"));
-
-            // Create Base Dataset of UrlSlug
-            DataSet UrlSlugDS = SynchronizationHelper.GetObjectData(OperationTypeEnum.Synchronization, urlSlug, false, false, NodeBoundObjectTableHelper);
-
-            // Create Translation Table of Node
-            DataSet NodeBoundObjectData = SynchronizationHelper.GetObjectsData(OperationTypeEnum.Synchronization, node, string.Format($"NodeID = {node.NodeID}"), null, true, false, NodeBoundObjectTableHelper);
-            if (NodeBoundObjectTableHelper.TranslationTable != null && NodeBoundObjectTableHelper.TranslationTable.Rows.Count > 0)
-            {
-                NodeBoundObjectData.Tables.Add(NodeBoundObjectTableHelper.TranslationTable);
-            }
-
-            // Convert to XML and Back, this makes the Columns all type string so the transfer table works
-            DataSet NodeRegionObjectDataHolder = new DataSet();
-            NodeRegionObjectDataHolder.ReadXml(new StringReader(NodeBoundObjectData.GetXml()));
-            if (!DataHelper.DataSourceIsEmpty(NodeRegionObjectDataHolder) && NodeRegionObjectDataHolder.Tables.Count > 0)
-            {
-                DataHelper.TransferTables(UrlSlugDS, NodeRegionObjectDataHolder);
-            }
-
-            return UrlSlugDS.GetXml();
         }
 
         private void Document_Publish_After(object sender, WorkflowEventArgs e)

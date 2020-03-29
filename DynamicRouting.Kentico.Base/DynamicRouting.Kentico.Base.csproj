@@ -454,6 +454,8 @@
     <Compile Include="Classes\Base\SlugGenerationQueueInfoProvider.cs" />
     <Compile Include="Classes\Base\UrlSlugInfo.cs" />
     <Compile Include="Classes\Base\UrlSlugInfoProvider.cs" />
+    <Compile Include="Classes\Base\UrlSlugStagingTaskIgnoreInfo.cs" />
+    <Compile Include="Classes\Base\UrlSlugStagingTaskIgnoreInfoProvider.cs" />
     <Compile Include="Classes\Models\NodeData.cs" />
     <Compile Include="Classes\Models\NodeItemBuilderSetting.cs" />
     <Compile Include="Classes\Models\NodeUrlSlug.cs" />

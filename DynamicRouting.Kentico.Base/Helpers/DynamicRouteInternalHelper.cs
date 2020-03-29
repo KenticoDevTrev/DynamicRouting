@@ -19,11 +19,41 @@ using System.Xml.Serialization;
 
 namespace DynamicRouting
 {
+
+    
+
     /// <summary>
     /// Helper methods used internally
     /// </summary>
     public static class DynamicRouteInternalHelper
     {
+        /// <summary>
+        /// Clears out old Url slug ignore entries and checks for any recent Url Slugs that shouldn't have their Staging task created.
+        /// </summary>
+        /// <param name="UrlSlugID">The URL Slug ID</param>
+        /// <returns>If the Staging Task Should be ignored for this entry.</returns>
+        public static bool ShouldIgnoreStagingTaskOfUrlSlug(int UrlSlugID)
+        {
+            // Delete old records and grab any new
+            return ConnectionHelper.ExecuteQuery("DynamicRouting.UrlSlugStagingTaskIgnore.GetUrlSlugShouldBeIgnored", new QueryDataParameters()
+            {
+                {"@UrlSlugID", UrlSlugID }
+            }).Tables[0].Rows.Count > 0;
+        }
+
+        /// <summary>
+        /// Removes specific entries for this Url Slug, executed when a slug is being updated so regardless of the age, the entry or lack there of is accurate.
+        /// </summary>
+        /// <param name="UrlSlugID">The Url Slug ID</param>
+        public static void RemoveIgnoreStagingTaskOfUrlSlug(int UrlSlugID)
+        {
+            ConnectionHelper.ExecuteNonQuery("DynamicRouting.UrlSlugStagingTaskIgnore.DeleteSpecificUrlSlugRecords", new QueryDataParameters()
+            {
+                {"@UrlSlugID", UrlSlugID }
+            });
+        }
+
+
         public static SiteInfo SiteContextSafe()
         {
             return SiteContext.CurrentSite ?? CacheHelper.Cache(cs =>
