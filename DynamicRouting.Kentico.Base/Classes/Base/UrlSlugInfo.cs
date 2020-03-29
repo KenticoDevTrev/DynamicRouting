@@ -68,6 +68,10 @@ namespace DynamicRouting
             // Only Url Slugs that are either made customized, the custom Url was modified, was Un-customized, or if this task was generated from the Staging Module in which case every Url Slug will be checked.
             // These staging tasks are manually handled since non-customized Url Slugs are dynamically generated based on the url Pattern of the page type.
             UrlSlugInfo UrlSlug = (UrlSlugInfo)classObj;
+            if(UrlSlug.UrlSlugID <= 0)
+            {
+                return false;
+            }
             return !DynamicRouteInternalHelper.ShouldIgnoreStagingTaskOfUrlSlug(UrlSlug.UrlSlugID);
         }
 

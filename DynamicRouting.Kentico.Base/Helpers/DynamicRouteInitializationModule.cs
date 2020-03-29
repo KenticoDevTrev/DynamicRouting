@@ -106,32 +106,56 @@ namespace DynamicRouting.Kentico
             // Handle 301 Redirect creation on Url Slug updates
             UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before_301Redirect;
 
-            // Handle if IsCustom was true and is now false to re-build the slug
+            // Handle if IsCustom was true and is now false to re-build the slug, also handle preventing Url Slug staging tasks unless a custom action was done on the slug.
             UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before_IsCustomRebuild;
             UrlSlugInfo.TYPEINFO.Events.Update.After += UrlSlug_Update_After_IsCustomRebuild;
 
-            // Update Task Title to so we can handle differently depending on the type of update
-            StagingEvents.LogTask.Before += StagingEvent_LogTask_Before;
+            // Prevent Url Slug inserts from logging, these will always be "automatic" and should be handled normally
+            UrlSlugInfo.TYPEINFO.Events.Insert.After += UrlSlug_Insert_After;
+
+            // Add better name for tasks
+            StagingEvents.LogTask.Before += LogTask_Before;
+
+            // Handle the URL Slug events manually, will be checking for changes and adjusting.
             StagingEvents.ProcessTask.Before += StagingTask_ProcessTask_Before;
         }
 
-        private void StagingEvent_LogTask_Before(object sender, StagingLogTaskEventArgs e)
+        private void LogTask_Before(object sender, StagingLogTaskEventArgs e)
         {
-            if (e.Task.TaskObjectType.Equals(UrlSlugInfo.OBJECT_TYPE, StringComparison.InvariantCultureIgnoreCase))
+            if (e.Task.TaskTitle.IndexOf("Update Url Slug", StringComparison.InvariantCultureIgnoreCase) == 0)
             {
+                // Update the TItle
                 UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
-                RecursionControl IndividualUpdateTrigger = new RecursionControl("UrlSlug_CameFromIndividualUpdate_" + UrlSlug.UrlSlugGuid);
-
-                // If this staging task was from an individual update, only update if the custom was either added, updated, or was uncustomized.
-                if (!IndividualUpdateTrigger.Continue)
+                var DocQuery = DocumentHelper.GetDocuments()
+                    .WhereEquals("nodeID", UrlSlug.UrlSlugNodeID)
+                    .Columns("NodeAlias, DocumentCulture");
+                if (!string.IsNullOrWhiteSpace(UrlSlug.UrlSlugCultureCode))
                 {
-                    RecursionControl CreateStagingTask = new RecursionControl("UrlSlug_ShouldCreateStagingTask_" + UrlSlug.UrlSlugGuid);
-                    if (!CreateStagingTask.Continue)
-                    {
-                        e.Task.TaskTitle += " - Check";
-                    }
+                    DocQuery.Culture(UrlSlug.UrlSlugCultureCode);
+                } else
+                {
+                    DocQuery.CombineWithDefaultCulture();
+                    DocQuery.CombineWithAnyCulture();
+                }
+                var Node = DocQuery.FirstOrDefault();
+                if(UrlSlug.UrlSlugIsCustom) { 
+                    e.Task.TaskTitle = $"Add Custom Url Slug '{UrlSlug.UrlSlug}' for page {Node.NodeAlias} [{Node.DocumentCulture}]";
+                } else
+                {
+                    e.Task.TaskTitle = $"Restore Url Slug for page {Node.NodeAlias} [{Node.DocumentCulture}] to default";
                 }
             }
+        }
+
+
+        private void UrlSlug_Insert_After(object sender, ObjectEventArgs e)
+        {
+            UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
+            // Staging task should not be created, add entry so this task won't be generated
+            UrlSlugStagingTaskIgnoreInfoProvider.SetUrlSlugStagingTaskIgnoreInfo(new UrlSlugStagingTaskIgnoreInfo()
+            {
+                UrlSlugStagingTaskIgnoreUrlSlugID = UrlSlug.UrlSlugID
+            });
         }
 
         private void StagingTask_ProcessTask_Before(object sender, StagingSynchronizationEventArgs e)
@@ -148,70 +172,40 @@ namespace DynamicRouting.Kentico
                 {
                     if (e.TaskData.Tables.Contains("urlslugtype"))
                     {
-                        DataTable SlugType = e.TaskData.Tables["urlslugtype"];
                         int NewNodeID = TranslateBindingTranslateID(UrlSlug.UrlSlugNodeID, e.TaskData, "cms.node");
                         // Get the Site's current Url Slug
                         UrlSlugInfo CurrentUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
                             .WhereEquals("UrlSlugNodeID", NewNodeID)
                             .WhereEquals("UrlSlugCultureCode", UrlSlug.UrlSlugCultureCode)
                             .FirstOrDefault();
-                        if (SlugType.Rows.Count > 0 && CurrentUrlSlug != null)
+
+                        bool UpdateCurrentUrlSlug = false;
+                        if (UrlSlug.UrlSlugIsCustom)
                         {
-                            switch (ValidationHelper.GetString(SlugType.Rows[0]["typecode"], "check").ToLower())
+                            if (!CurrentUrlSlug.UrlSlugIsCustom)
                             {
-                                case "addupdate":
-                                    if (!CurrentUrlSlug.UrlSlugIsCustom)
-                                    {
-                                        CurrentUrlSlug.UrlSlugIsCustom = true;
-                                        CurrentUrlSlug.UrlSlug = UrlSlug.UrlSlug;
-                                        UrlSlugInfoProvider.SetUrlSlugInfo(CurrentUrlSlug);
-                                    }
-                                    else if (CurrentUrlSlug.UrlSlug != UrlSlug.UrlSlug)
-                                    {
-                                        CurrentUrlSlug.UrlSlug = UrlSlug.UrlSlug;
-                                        UrlSlugInfoProvider.SetUrlSlugInfo(UrlSlug);
-                                    }
-                                    e.TaskHandled = true;
-                                    break;
-                                case "remove":
-                                    if (CurrentUrlSlug.UrlSlugIsCustom)
-                                    {
-                                        CurrentUrlSlug.UrlSlugIsCustom = false;
-                                        UrlSlugInfoProvider.SetUrlSlugInfo(CurrentUrlSlug);
-                                    }
-                                    e.TaskHandled = true;
-                                    break;
-                                case "check":
-                                    bool UpdateCurrentUrlSlug = false;
-                                    if (UrlSlug.UrlSlugIsCustom)
-                                    {
-                                        if (!CurrentUrlSlug.UrlSlugIsCustom)
-                                        {
-                                            CurrentUrlSlug.UrlSlugIsCustom = true;
-                                            UpdateCurrentUrlSlug = true;
-                                        }
-                                        if (CurrentUrlSlug.UrlSlug != UrlSlug.UrlSlug)
-                                        {
-                                            CurrentUrlSlug.UrlSlug = UrlSlug.UrlSlug;
-                                            UpdateCurrentUrlSlug = true;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        if (CurrentUrlSlug.UrlSlugIsCustom)
-                                        {
-                                            CurrentUrlSlug.UrlSlugIsCustom = false;
-                                            UpdateCurrentUrlSlug = true;
-                                        }
-                                    }
-                                    if (UpdateCurrentUrlSlug)
-                                    {
-                                        UrlSlugInfoProvider.SetUrlSlugInfo(CurrentUrlSlug);
-                                    }
-                                    e.TaskHandled = true;
-                                    break;
+                                CurrentUrlSlug.UrlSlugIsCustom = true;
+                                UpdateCurrentUrlSlug = true;
+                            }
+                            if (CurrentUrlSlug.UrlSlug != UrlSlug.UrlSlug)
+                            {
+                                CurrentUrlSlug.UrlSlug = UrlSlug.UrlSlug;
+                                UpdateCurrentUrlSlug = true;
                             }
                         }
+                        else
+                        {
+                            if (CurrentUrlSlug.UrlSlugIsCustom)
+                            {
+                                CurrentUrlSlug.UrlSlugIsCustom = false;
+                                UpdateCurrentUrlSlug = true;
+                            }
+                        }
+                        if (UpdateCurrentUrlSlug)
+                        {
+                            UrlSlugInfoProvider.SetUrlSlugInfo(CurrentUrlSlug);
+                        }
+                        e.TaskHandled = true;
                     }
                 }
             }
@@ -274,15 +268,10 @@ namespace DynamicRouting.Kentico
             {
                 try
                 {
-                    using (new CMSActionContext()
-                    {
-                        LogSynchronization = false,
-                        LogIntegration = false
-                    })
-                    {
-                        // If Continue is false, then the Before update shows this needs to be rebuilt.
-                        DynamicRouteInternalHelper.RebuildRoutesByNode(UrlSlug.UrlSlugNodeID);
-                    }
+
+                    // If Continue is false, then the Before update shows this needs to be rebuilt.
+                    DynamicRouteInternalHelper.RebuildRoutesByNode(UrlSlug.UrlSlugNodeID);
+
                 }
                 catch (UrlSlugCollisionException ex)
                 {
@@ -327,13 +316,12 @@ namespace DynamicRouting.Kentico
             }
 
 
-            // If no UrlSlugID, it's the original creation, and it will always be the default Url Slug (not customized)
-            
-            // Delete existing ignore records
-            DynamicRouteInternalHelper.RemoveIgnoreStagingTaskOfUrlSlug(UrlSlug.UrlSlugID);
-
-            if (UrlSlug.UrlSlugID > 0 && CMSActionContext.CurrentLogSynchronization)
+            // This prevents the recursive url slug updates from the first update from removing the "Ignore" on this item.
+            RecursionControl AlreadyDeterminedIfShouldIgnore = new RecursionControl("AlreadyDeterminedIfShouldIgnore_" + UrlSlug.UrlSlugGuid);
+            if (CMSActionContext.CurrentLogSynchronization && AlreadyDeterminedIfShouldIgnore.Continue)
             {
+                // Delete existing ignore records
+                DynamicRouteInternalHelper.RemoveIgnoreStagingTaskOfUrlSlug(UrlSlug.UrlSlugID);
                 // If the staging task Should be created
                 if (
                     (UrlSlug.UrlSlugIsCustom && !ValidationHelper.GetBoolean(UrlSlug.GetOriginalValue("UrlSlugIsCustom"), true))
@@ -386,13 +374,13 @@ namespace DynamicRouting.Kentico
         private void UrlSlug_Update_Before_301Redirect(object sender, ObjectEventArgs e)
         {
             UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
-
             #region "Create Alternative Url of Previous Url"
             try
             {
                 // Alternative Urls don't have the slash at the beginning
                 string OriginalUrlSlugNoTrim = ValidationHelper.GetString(UrlSlug.GetOriginalValue("UrlSlug"), UrlSlug.UrlSlug);
                 string OriginalUrlSlug = OriginalUrlSlugNoTrim.Trim('/');
+                bool AlternativeUrlChangesFound = false;
 
                 // save previous Url to 301 redirects
                 // Get DocumentID
@@ -464,6 +452,7 @@ namespace DynamicRouting.Kentico
                         {
                             AlternativeUrl.AlternativeUrlDocumentID = DefaultLanguage.DocumentID;
                             AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                            AlternativeUrlChangesFound = true;
                         }
                     }
                 }
@@ -505,6 +494,7 @@ namespace DynamicRouting.Kentico
                         try
                         {
                             AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
+                            AlternativeUrlChangesFound = true;
                         }
                         catch (InvalidAlternativeUrlException ex)
                         {
@@ -512,11 +502,18 @@ namespace DynamicRouting.Kentico
                         }
                     }
                 }
+                if (AlternativeUrlChangesFound)
+                {
+                    // Log changes to alternative URL
+                    Document.Update(false);
+                    DocumentSynchronizationHelper.LogDocumentChange(Document, TaskTypeEnum.UpdateDocument, Document.TreeProvider);
+                }
             }
             catch (Exception ex)
             {
                 LogErrorsInSeparateThread(ex, "DynamicRouting", "AlternateUrlError", $"Occurred on Url Slug Update for Url Slug {UrlSlug.UrlSlug} {UrlSlug.UrlSlugCultureCode}");
             }
+
             #endregion
 
             #region "Remove any Alternative Url of the new Url for this node"
@@ -540,10 +537,21 @@ namespace DynamicRouting.Kentico
                     .Select(x => x.DocumentID).ToList();
 
                 // Delete any Alternate Urls for any of the culture variations of this node that match the new Url Slug, this is to prevent infinite redirect loops
+                bool ItemsFoundDeleted = false;
                 AlternativeUrlInfoProvider.GetAlternativeUrls()
                     .WhereEquals("AlternativeUrlUrl", NewUrlSlug)
                     .WhereIn("AlternativeUrlDocumentID", AllDocumentIDs)
-                    .ForEachObject(x => x.Delete());
+                    .ForEachObject(x =>
+                    {
+                        ItemsFoundDeleted = true;
+                        x.Delete();
+                    });
+                if (ItemsFoundDeleted)
+                {
+                    // Log changes to alternative URL
+                    Document.Update(false);
+                    DocumentSynchronizationHelper.LogDocumentChange(Document, TaskTypeEnum.UpdateDocument, Document.TreeProvider);
+                }
 
                 SiteInfo Site = SiteInfoProvider.GetSiteInfo(Document.NodeSiteID);
                 string DefaultCulture = SettingsKeyInfoProvider.GetValue("CMSDefaultCultureCode", new SiteInfoIdentifier(Site.SiteName));
