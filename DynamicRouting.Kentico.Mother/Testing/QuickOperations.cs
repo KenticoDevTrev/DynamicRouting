@@ -1,4 +1,5 @@
 ﻿using CMS.Base;
+using CMS.DataEngine;
 using CMS.DocumentEngine;
 using CMS.EventLog;
 using CMS.SiteProvider;
@@ -43,6 +44,17 @@ namespace CMSApp.CMSModules.DynamicRouting
             else
             {
                 ltrPageFound.Text = "No Node Found";
+            }
+        }
+
+        protected void btnCleanWipe_Click(object sender, EventArgs e)
+        {
+            // clear out
+            ConnectionHelper.ExecuteNonQuery("truncate table DynamicRouting_SlugGenerationQueue", null, QueryTypeEnum.SQLQuery, true);
+            ConnectionHelper.ExecuteNonQuery("truncate table DynamicRouting_UrlSlug", null, QueryTypeEnum.SQLQuery, true);
+            ConnectionHelper.ExecuteNonQuery("truncate table DynamicRouting_UrlSlugStagingTaskIgnore", null, QueryTypeEnum.SQLQuery, true);
+            foreach(SiteInfo Site in SiteInfoProvider.GetSites()) { 
+                DynamicRouteInternalHelper.RebuildRoutesBySite(Site.SiteName);
             }
         }
     }

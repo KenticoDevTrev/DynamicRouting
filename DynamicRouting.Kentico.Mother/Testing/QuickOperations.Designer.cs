@@ -78,6 +78,15 @@ namespace CMSApp.CMSModules.DynamicRouting
         protected global::System.Web.UI.WebControls.Button btnCheckUrl;
 
         /// <summary>
+        /// btnCheckUrl control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Button btnCleanWipe;
+
+        /// <summary>
         /// ltrPageFound control.
         /// </summary>
         /// <remarks>

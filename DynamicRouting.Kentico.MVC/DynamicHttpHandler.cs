@@ -39,7 +39,7 @@ namespace DynamicRouting.Kentico.MVC
         /// <param name="context"></param>
         public void ProcessRequest(HttpContext context)
         {
-            var node = DynamicRouteHelper.GetPage();
+            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: false);
 
             var routePair = ResolveRouteValues(node);
 
@@ -90,9 +90,11 @@ namespace DynamicRouting.Kentico.MVC
                 ? RequestContext.RouteData.Values["action"].ToString()
                 : "";
 
-            if(string.IsNullOrWhiteSpace(defaultController))
+            bool UseCachedRoutes = DynamicRouteInternalHelper.GetUseCachedDynamicRoutes();
+
+            if (string.IsNullOrWhiteSpace(defaultController))
             {
-                defaultController = "DynamicRoute";
+                defaultController = "DynamicRoute"+(UseCachedRoutes ? "Cached" : "");
             }
             if(string.IsNullOrWhiteSpace(defaultAction))
             {

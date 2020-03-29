@@ -15,7 +15,7 @@ namespace DynamicRouting.Kentico.MVC
         /// </summary>
         public ActionResult Index(string TemplateControllerName = null)
         {
-            ITreeNode FoundNode = DynamicRouteHelper.GetPage();
+            ITreeNode FoundNode = DynamicRouteHelper.GetPage(Columns: new string[] { "DocumentID" }, AddPageToCacheDependency: DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency());
             if (FoundNode != null)
             {
                 HttpContext.Kentico().PageBuilder().Initialize(FoundNode.DocumentID);

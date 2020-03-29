@@ -29,15 +29,17 @@ namespace DynamicRouting.Kentico.MVC
             ViewName = viewName;
             ModelType = modelType;
             RouteType = routeType;
+            bool UseCachedRoutes = DynamicRouteInternalHelper.GetUseCachedDynamicRoutes();
+
             // Adjust based on Route Type
             switch (RouteType)
             {
                 case DynamicRouteType.View:
-                    ControllerName = "DynamicRoute";
+                    ControllerName = "DynamicRoute"+(UseCachedRoutes ? "Cached" : "");
                     ActionName = "RenderView";
                     break;
                 case DynamicRouteType.ViewWithModel:
-                    ControllerName = "DynamicRoute";
+                    ControllerName = "DynamicRoute" + (UseCachedRoutes ? "Cached" : "");
                     ActionName = "RenderViewWithModel";
                     break;
                 case DynamicRouteType.Controller:

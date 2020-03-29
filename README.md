@@ -1,3 +1,4 @@
+
 # DynamicRouting
 Dynamic Routing for Kentico is a two part system that allows you to automatically handle page requests and route them to certain actions based on the Page Type of the current page.  This is done through the automatic generation of Url Slugs that help Kentico identify which Page you are requesting (based on the Url), and Assembly Attribute tags to route that page appropriately.
 
@@ -94,6 +95,10 @@ The Dynamic Routing Settings are relatively simple, and if you hover over them t
 * **Url Slug Conflict Behavior**: If a conflict occurs, you can either have it Append Postfix, which is the `-(#)` at the end, or Cancel the Action will prevent the action from occurring.
 * **Queue Error Behavior**: If an error occurs while building the Url Slugs in the background, if you wish future queue items to execute or wait.  You can check Queue status and errors through the Dynamic Routing UI Element -> Url Slug Queue
 
+### Performance Settings and Caching
+* **Add Page to Cache Dependency**: If checked, the key of "documentid|123" is added to the page's output response for the `DynamicRouteController`, `DynamicRouteCachedController`, `DynamicRouteTemplateController`, and `DynamicRouteTemplateCachedController`.
+* * **Use Output Cached Dynamic Controllers**: If checked, pages that either have Page Templates, or classes that render just a View or View+Model will have OutputCaching enabled.  You must implement the `outputCacheProfiles` of `DynamicRouteController` and `DynamicRouteTemplateController` to leverage.  See the **Output Caching** section for more information.
+
 ## Url Slug Formatting and {% ParentUrl() %}
 Url Slugs are determined through the Page Type's `Url Pattern`. You are allowed to use any CMS_Document, CMS_Tree fields, along with any field of that Page Type itself (such as *BlogTitle* or *PageName*).
 
@@ -134,6 +139,38 @@ protected void Application_Start()
     }
 
 ````
+
+## Caching
+As of version 12.29.11, Output Caching support has been added.
+
+### For Dynamic Routes to Controllers
+If your Dynamic Route goes to a custom Controller, calling the `DynamicRouteHelper.GetPage()` will by default add the `documentid|<FoundDocID>` Cache Dependency key to the response.  This means if you add the [OutputCache] attribute on your action, it will clear when the page is updated.  While this is enabled by default, you can disable it by passing in a false for the property `AddPageToCacheDependency`
+
+### For Automatic Routes
+If your Route either Renders a View, a View + Model, the document's ID is only added to the page's response if you check the settings `Add Page to Cache Dependency` (default true) in the Settings -> Url and SEO -> Dynamic Routing.
+
+However, these controllers do not implement an output caching.  If you wish to have these automatic routes output cached, you can set the settings `Use Output Cached Dynamic Controllers` to true (also in Settings -> Url and SEO -> Dynamic Routing).  This will send these requests to a special OutputCached version of the controller.
+
+**IMPORTANT**: If you use the Cached version, you *must* implement the `outputCacheProfile` of `DynamicRouteController`, this is how you can control how these are cached.  Add the below to your `<configuration><system.web>` section in your MVC Site's web.config:
+
+```
+<configuration>
+  <system.web>
+    <caching>
+      <outputCacheSettings>
+        <outputCacheProfiles>
+          <add name="DynamicRouteController" duration="60" varyByParam="none"/>
+        </outputCacheProfiles>
+      </outputCacheSettings>
+    </caching>
+    ...
+  </system.web>
+  ...
+</configuration
+```
+
+### For Templates
+Since Templates are handled by Kentico, any output caching must be handled by the Page Template itself.  However, as long as `AddPageToCacheDependency` is enabled, Dynamic Routing will add the Document's cache key to the response.
 
 # Installing on Additional Environments
 As with any Kentico module that is available in a NuGet package, if you install this on one environment (ex "Dev") and wish to push this to the other environments, you will need to either...

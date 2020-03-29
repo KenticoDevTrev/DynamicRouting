@@ -871,8 +871,6 @@ namespace DynamicRouting
             }, new CacheSettings(1440, "GetClassByID", ClassID));
         }
 
-
-
         /// <summary>
         /// Cached helper to get the CultureInfo object for the given Culture code
         /// </summary>
@@ -886,6 +884,40 @@ namespace DynamicRouting
                 cs.CacheDependency = CacheHelper.GetCacheDependency("cms.culture|byname|" + CultureCode);
                 return Culture;
             }, new CacheSettings(1440, "GetCultureByName", CultureCode));
+        }
+
+        /// <summary>
+        /// Gets if pages handled through the DynamicRouteController should have their DocumentID added to the Output Cache Dependency
+        /// </summary>
+        /// <returns></returns>
+        public static bool GetDefaultAddPageToCacheDependency()
+        {
+            string SiteName = SiteContextSafe().SiteName;
+            return CacheHelper.Cache(cs =>
+            {
+                if (cs.Cached)
+                {
+                    cs.CacheDependency = CacheHelper.GetCacheDependency("cms.settingskey|byname|AddPageToCacheDependency");
+                }
+                return SettingsKeyInfoProvider.GetBoolValue("AddPageToCacheDependency", new SiteInfoIdentifier(SiteName));
+            }, new CacheSettings(1440, "GetDefaultAddPageToCacheDependency", SiteName));
+        }
+
+        /// <summary>
+        /// Gets if pages handled through the DynamicRouteController should have their DocumentID added to the Output Cache Dependency
+        /// </summary>
+        /// <returns></returns>
+        public static bool GetUseCachedDynamicRoutes()
+        {
+            string SiteName = SiteContextSafe().SiteName;
+            return CacheHelper.Cache(cs =>
+            {
+                if (cs.Cached)
+                {
+                    cs.CacheDependency = CacheHelper.GetCacheDependency("cms.settingskey|byname|UseOutputCachedDynamicControllers");
+                }
+                return SettingsKeyInfoProvider.GetBoolValue("UseOutputCachedDynamicControllers", new SiteInfoIdentifier(SiteName));
+            }, new CacheSettings(1440, "GetUseCachedDynamicRoutes", SiteName));
         }
 
         #endregion

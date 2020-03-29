@@ -8,12 +8,14 @@ using System.Web.Mvc;
 
 namespace DynamicRouting.Kentico.MVC
 {
-    public class DynamicRouteController : Controller
+    
+    public class DynamicRouteCachedController : Controller
     {
         /// <summary>
         /// Renders the Dynamic Route View (no model)
         /// </summary>
         /// <returns></returns>
+        [OutputCache(CacheProfile = "DynamicRouteController")]
         public ActionResult RenderView()
         {
             // Get default Add Page to Output Dependency
@@ -28,6 +30,7 @@ namespace DynamicRouting.Kentico.MVC
         /// Renders the View with either an ITreeNode model or the given Model Type
         /// </summary>
         /// <returns></returns>
+        [OutputCache(CacheProfile = "DynamicRouteController")]
         public ActionResult RenderViewWithModel()
         {
             var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency());

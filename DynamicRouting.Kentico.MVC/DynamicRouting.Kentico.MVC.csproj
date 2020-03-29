@@ -526,6 +526,7 @@
     <Compile Include="ControllerExtensions.cs" />
     <Compile Include="DynamicHttpHandler.cs" />
     <Compile Include="DynamicRouteConstraint.cs" />
+    <Compile Include="DynamicRouteCachedController.cs" />
     <Compile Include="DynamicRouteController.cs" />
     <Compile Include="DynamicRouteHandler.cs" />
     <Compile Include="DynamicRouteHelper.cs" />
