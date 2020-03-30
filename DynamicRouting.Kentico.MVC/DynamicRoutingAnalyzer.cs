@@ -41,7 +41,9 @@ namespace DynamicRouting.Kentico.MVC
                         actionName: attribute.ActionMethodName,
                         viewName: attribute.ViewName,
                         modelType: attribute.ModelType,
-                        routeType: attribute.RouteType
+                        routeType: attribute.RouteType,
+                        includeDocumentInOutputCache: attribute.IncludeDocumentInOutputCache,
+                        useOutputCaching: attribute.UseOutputCaching
                         ));
                 }
             }

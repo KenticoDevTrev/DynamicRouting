@@ -44,6 +44,7 @@ namespace DynamicRouting.Kentico.MVC
                 .Select(n => n.ToLowerInvariant())
                 .ToArray();
             RouteType = DynamicRouteType.Controller;
+            UseOutputCaching = false;
         }
 
         /// <summary>
@@ -52,7 +53,10 @@ namespace DynamicRouting.Kentico.MVC
         /// <param name="viewName">The View name that should be rendered.</param>
         /// <param name="modelType">The Model that inherits <see cref="CMS.Base.ITreeNode"/></param>
         /// <param name="pageClassName">The Class Name that this Dynamic Route applies to.</param>
-        public DynamicRoutingAttribute(string viewName, Type modelType, string pageClassName)
+        /// <param name="includeDocumentInOutputCache">If true, will add the Document ID to the repsonse's Cache Dependencies</param>
+        /// <param name="useOutputCaching">If true, will use an Output Cached Controller to render this.</param>
+
+        public DynamicRoutingAttribute(string viewName, Type modelType, string pageClassName, bool includeDocumentInOutputCache = true, bool useOutputCaching = false)
         {
             if (string.IsNullOrWhiteSpace(viewName))
             {
@@ -73,6 +77,8 @@ namespace DynamicRouting.Kentico.MVC
             ModelType = modelType;
             PageClassNames = new string[] { pageClassName };
             RouteType = DynamicRouteType.ViewWithModel;
+            UseOutputCaching = useOutputCaching;
+            IncludeDocumentInOutputCache = includeDocumentInOutputCache;
         }
 
         /// <summary>
@@ -81,7 +87,9 @@ namespace DynamicRouting.Kentico.MVC
         /// <param name="viewName">The View name that should be rendered.</param>
         /// <param name="pageClassNames">The Class Names that this Dynamic Route applies to.</param>
         /// <param name="includePageModel">Will pass the <see cref="CMS.Base.ITreeNode"/> page as the model for this view. If false, will not pass a model.</param>
-        public DynamicRoutingAttribute(string viewName, string[] pageClassNames, bool IncludePageModel = true)
+        /// <param name="includeDocumentInOutputCache">If true, will add the Document ID to the repsonse's Cache Dependencies</param>
+        /// <param name="useOutputCaching">If true, will use an Output Cached Controller to render this.</param>
+        public DynamicRoutingAttribute(string viewName, string[] pageClassNames, bool IncludePageModel = true, bool includeDocumentInOutputCache = true, bool useOutputCaching = false)
         {
             if (string.IsNullOrWhiteSpace(viewName))
             {
@@ -105,6 +113,8 @@ namespace DynamicRouting.Kentico.MVC
             {
                 RouteType = DynamicRouteType.View;
             }
+            UseOutputCaching = useOutputCaching;
+            IncludeDocumentInOutputCache = includeDocumentInOutputCache;
         }
 
         /// <summary>
@@ -126,6 +136,10 @@ namespace DynamicRouting.Kentico.MVC
         public Type ModelType { get; }
 
         public string ViewName { get; }
+
+        public bool UseOutputCaching { get; }
+
+        public bool IncludeDocumentInOutputCache { get; }
 
         public DynamicRouteType RouteType { get; }
     }

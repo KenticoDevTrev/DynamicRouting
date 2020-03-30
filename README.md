@@ -79,12 +79,12 @@ Here are some samples:
 [assembly: DynamicRouting(typeof(ListController), new string[] { Listing.CLASS_NAME }, nameof(ListController.Listing) )]
 // Controller + Action
 [assembly: DynamicRouting(typeof(ListController), new string[] { ListItem.CLASS_NAME }, nameof(ListController.ListItem))]
-// View only, no model passed, Page Builder Widgets are Enabled
-[assembly: DynamicRouting("DynamicRoutingTesting/DynamicNoModel", new string[] { "My.Class" }, false)]
+// View only, no model passed, Page Builder Widgets are Enabled, the document ID won't be passed in the Output cache dependencies and output caching will be disabled
+[assembly: DynamicRouting("DynamicRoutingTesting/DynamicNoModel", new string[] { "My.Class" }, false, includeDocumentInOutputCache: false, useOutputCaching: false)]
 // View + ITreeNode model, Page Builder Widgets are Enabled
 [assembly: DynamicRouting("DynamicRoutingTesting/DynamicITreeNodeModel", new string[] { "My.OtherClass" }, true)]
-// View + Typed Model, Model must be of type ITreeNode, Page Builder Widgets are Enabled
-[assembly: DynamicRouting("DynamicRoutingTesting/DynamicModel", typeof(MyPageTypeModel), MyPageTypeModel.CLASS_NAME)]
+// View + Typed Model, Model must be of type ITreeNode, Page Builder Widgets are Enabled, the response will be Output Cached, and since includeDocumentInOutputCache is by default true, the documentid|### is added to the output's cache dependencies
+[assembly: DynamicRouting("DynamicRoutingTesting/DynamicModel", typeof(MyPageTypeModel), MyPageTypeModel.CLASS_NAME, useOutputCaching: true)]
 ```
 
 ## Site Settings Settings
@@ -94,10 +94,6 @@ The Dynamic Routing Settings are relatively simple, and if you hover over them t
 * **Excluded Classes**: These classes will not be handled by the Dynamic Routing.
 * **Url Slug Conflict Behavior**: If a conflict occurs, you can either have it Append Postfix, which is the `-(#)` at the end, or Cancel the Action will prevent the action from occurring.
 * **Queue Error Behavior**: If an error occurs while building the Url Slugs in the background, if you wish future queue items to execute or wait.  You can check Queue status and errors through the Dynamic Routing UI Element -> Url Slug Queue
-
-### Performance Settings and Caching
-* **Add Page to Cache Dependency**: If checked, the key of "documentid|123" is added to the page's output response for the `DynamicRouteController`, `DynamicRouteCachedController`, `DynamicRouteTemplateController`, and `DynamicRouteTemplateCachedController`.
-* * **Use Output Cached Dynamic Controllers**: If checked, pages that either have Page Templates, or classes that render just a View or View+Model will have OutputCaching enabled.  You must implement the `outputCacheProfiles` of `DynamicRouteController` and `DynamicRouteTemplateController` to leverage.  See the **Output Caching** section for more information.
 
 ## Url Slug Formatting and {% ParentUrl() %}
 Url Slugs are determined through the Page Type's `Url Pattern`. You are allowed to use any CMS_Document, CMS_Tree fields, along with any field of that Page Type itself (such as *BlogTitle* or *PageName*).
@@ -141,15 +137,16 @@ protected void Application_Start()
 ````
 
 ## Caching
-As of version 12.29.11, Output Caching support has been added.
+As of version 12.29.10, Output Caching support has been added.
 
 ### For Dynamic Routes to Controllers
 If your Dynamic Route goes to a custom Controller, calling the `DynamicRouteHelper.GetPage()` will by default add the `documentid|<FoundDocID>` Cache Dependency key to the response.  This means if you add the [OutputCache] attribute on your action, it will clear when the page is updated.  While this is enabled by default, you can disable it by passing in a false for the property `AddPageToCacheDependency`
 
 ### For Automatic Routes
-If your Route either Renders a View, a View + Model, the document's ID is only added to the page's response if you check the settings `Add Page to Cache Dependency` (default true) in the Settings -> Url and SEO -> Dynamic Routing.
+Two new properties have been added to the DynamicRoute attribute for View / View+Model routes, these are `includeDocumentInOutputCache` and `useOutputCaching`
 
-However, these controllers do not implement an output caching.  If you wish to have these automatic routes output cached, you can set the settings `Use Output Cached Dynamic Controllers` to true (also in Settings -> Url and SEO -> Dynamic Routing).  This will send these requests to a special OutputCached version of the controller.
+`IncludeDocumentInOutputCache` is true by default, but you can disable it if you wish.
+`useOutputCaching` is false by default, and if you enable it, it will use the `DynamicRouteCachedController` for it's rendering, which has this output cache on it's methods: `[OutputCache(CacheProfile = "DynamicRouteController")]`
 
 **IMPORTANT**: If you use the Cached version, you *must* implement the `outputCacheProfile` of `DynamicRouteController`, this is how you can control how these are cached.  Add the below to your `<configuration><system.web>` section in your MVC Site's web.config:
 
@@ -170,7 +167,9 @@ However, these controllers do not implement an output caching.  If you wish to h
 ```
 
 ### For Templates
-Since Templates are handled by Kentico, any output caching must be handled by the Page Template itself.  However, as long as `AddPageToCacheDependency` is enabled, Dynamic Routing will add the Document's cache key to the response.
+Since Templates are handled by Kentico, any output caching must be handled by the Page Template itself.  The `DocumentID` is added to the response Cache Dependency by default for you.   
+
+If you wish to disable this behavior, you can use the Global Event`DynamicRoutingEvents.RequestRouting.Before` and set the `RequestRoutingEventArgs.Configuration.IncludeDocumentInOutputCache` to false if the `Configuration.ControllerName.Equals("DynamicRouteTemplate", StringComparison.InvariantCultureIgnoreCase); ` 
 
 # Installing on Additional Environments
 As with any Kentico module that is available in a NuGet package, if you install this on one environment (ex "Dev") and wish to push this to the other environments, you will need to either...

@@ -14,10 +14,14 @@ namespace DynamicRouting.Kentico.MVC
         /// Renders the Dynamic Route View (no model)
         /// </summary>
         /// <returns></returns>
-        public ActionResult RenderView()
+        public ActionResult RenderView(bool? IncludeDocumentInOutputCache = null)
         {
+            if (!IncludeDocumentInOutputCache.HasValue)
+            {
+                IncludeDocumentInOutputCache = DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency();
+            }
             // Get default Add Page to Output Dependency
-            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency());
+            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
             var routeConfig = DynamicRouteHelper.GetRouteConfiguration(node);
             HttpContext.Kentico().PageBuilder().Initialize(node.DocumentID);
 
@@ -28,9 +32,13 @@ namespace DynamicRouting.Kentico.MVC
         /// Renders the View with either an ITreeNode model or the given Model Type
         /// </summary>
         /// <returns></returns>
-        public ActionResult RenderViewWithModel()
+        public ActionResult RenderViewWithModel(bool? IncludeDocumentInOutputCache = null)
         {
-            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency());
+            if (!IncludeDocumentInOutputCache.HasValue)
+            {
+                IncludeDocumentInOutputCache = DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency();
+            }
+            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
             var routeConfig = DynamicRouteHelper.GetRouteConfiguration(node);
             HttpContext.Kentico().PageBuilder().Initialize(node.DocumentID);
 

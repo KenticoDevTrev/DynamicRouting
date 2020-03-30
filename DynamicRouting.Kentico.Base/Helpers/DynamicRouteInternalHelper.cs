@@ -53,7 +53,6 @@ namespace DynamicRouting
             });
         }
 
-
         public static SiteInfo SiteContextSafe()
         {
             return SiteContext.CurrentSite ?? CacheHelper.Cache(cs =>
@@ -747,7 +746,6 @@ namespace DynamicRouting
 
         }
 
-
         /// <summary>
         /// If true, then other queued Url Slug Generation tasks will be executed even if one has an error.  Risk is that you could end up with a change waiting to processes that was altered by a later task, thus reverting the true value possibly.
         /// </summary>
@@ -892,32 +890,9 @@ namespace DynamicRouting
         /// <returns></returns>
         public static bool GetDefaultAddPageToCacheDependency()
         {
-            string SiteName = SiteContextSafe().SiteName;
-            return CacheHelper.Cache(cs =>
-            {
-                if (cs.Cached)
-                {
-                    cs.CacheDependency = CacheHelper.GetCacheDependency("cms.settingskey|byname|AddPageToCacheDependency");
-                }
-                return SettingsKeyInfoProvider.GetBoolValue("AddPageToCacheDependency", new SiteInfoIdentifier(SiteName));
-            }, new CacheSettings(1440, "GetDefaultAddPageToCacheDependency", SiteName));
-        }
-
-        /// <summary>
-        /// Gets if pages handled through the DynamicRouteController should have their DocumentID added to the Output Cache Dependency
-        /// </summary>
-        /// <returns></returns>
-        public static bool GetUseCachedDynamicRoutes()
-        {
-            string SiteName = SiteContextSafe().SiteName;
-            return CacheHelper.Cache(cs =>
-            {
-                if (cs.Cached)
-                {
-                    cs.CacheDependency = CacheHelper.GetCacheDependency("cms.settingskey|byname|UseOutputCachedDynamicControllers");
-                }
-                return SettingsKeyInfoProvider.GetBoolValue("UseOutputCachedDynamicControllers", new SiteInfoIdentifier(SiteName));
-            }, new CacheSettings(1440, "GetUseCachedDynamicRoutes", SiteName));
+            // Can't think of a use case where the default wouldn't be true to add the key. You can specify in all cases with the DynamicRoute attribute at this point.
+            // I did have it in a settings...but yeah, don't think it's needed at all.
+            return true;
         }
 
         #endregion
