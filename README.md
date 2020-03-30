@@ -330,11 +330,16 @@ Add DynamicRouting attribute tags to link ClassNames with either Controller, Con
 
 Here are some samples:
 ```csharp
+// Controller + Action
 [assembly: DynamicRouting(typeof(ListController), new string[] { Listing.CLASS_NAME }, nameof(ListController.Listing) )]
+// Controller + Action
 [assembly: DynamicRouting(typeof(ListController), new string[] { ListItem.CLASS_NAME }, nameof(ListController.ListItem))]
-[assembly: DynamicRouting("DynamicRoutingTesting/DynamicNoModel", new string[] { "My.Class" }, false)]
+// View only, no model passed, Page Builder Widgets are Enabled, the document ID won't be passed in the Output cache dependencies and output caching will be disabled
+[assembly: DynamicRouting("DynamicRoutingTesting/DynamicNoModel", new string[] { "My.Class" }, false, includeDocumentInOutputCache: false, useOutputCaching: false)]
+// View + ITreeNode model, Page Builder Widgets are Enabled
 [assembly: DynamicRouting("DynamicRoutingTesting/DynamicITreeNodeModel", new string[] { "My.OtherClass" }, true)]
-[assembly: DynamicRouting("DynamicRoutingTesting/DynamicModel", typeof(MyPageTypeModel), MyPageTypeModel.CLASS_NAME)]
+// View + Typed Model, Model must be of type ITreeNode, Page Builder Widgets are Enabled, the response will be Output Cached, and since includeDocumentInOutputCache is by default true, the documentid|### is added to the output's cache dependencies
+[assembly: DynamicRouting("DynamicRoutingTesting/DynamicModel", typeof(MyPageTypeModel), MyPageTypeModel.CLASS_NAME, useOutputCaching: true)]
 ```
 
 ## DynamicRoutingEvents
@@ -342,6 +347,42 @@ I have also included 3 Global Event hooks for you to leverage. DynamicRoutingEve
 
 # Note on automatic Model Casting
 In order for `DynamicRouteHelper.GetPage()` to return the properly typed page (with a Type that matches your page type's generated code), that generated page type's class must be in a discoverable assembly, either the existing project, or in a separate class library that has the `[assembly: AssemblyDiscoverable]` attribute in it's AssemblyInfo.cs.  Otherwise it will return a TreeNode only and won't be able to convert to your Page Type Specific model dynamically, adn will throw an `InvalidCastException`.
+
+## Caching
+As of version 12.29.11, Output Caching support has been added.
+
+### For Dynamic Routes to Controllers
+If your Dynamic Route goes to a custom Controller, calling the `DynamicRouteHelper.GetPage()` will by default add the `documentid|<FoundDocID>` Cache Dependency key to the response.  This means if you add the [OutputCache] attribute on your action, it will clear when the page is updated.  While this is enabled by default, you can disable it by passing in a false for the property `AddPageToCacheDependency`
+
+### For Automatic Routes
+Two new properties have been added to the DynamicRoute attribute for View / View+Model routes, these are `includeDocumentInOutputCache` and `useOutputCaching`
+
+`IncludeDocumentInOutputCache` is true by default, but you can disable it if you wish.
+`useOutputCaching` is false by default, and if you enable it, it will use the `DynamicRouteCachedController` for it's rendering, which has this output cache on it's methods: `[OutputCache(CacheProfile = "DynamicRouteController")]`
+
+**IMPORTANT**: If you use the Cached version, you *must* implement the `outputCacheProfile` of `DynamicRouteController`, this is how you can control how these are cached.  Add the below to your `<configuration><system.web>` section in your MVC Site's web.config:
+
+```
+<configuration>
+  <system.web>
+    <caching>
+      <outputCacheSettings>
+        <outputCacheProfiles>
+          <add name="DynamicRouteController" duration="60" varyByParam="none"/>
+        </outputCacheProfiles>
+      </outputCacheSettings>
+    </caching>
+    ...
+  </system.web>
+  ...
+</configuration
+```
+
+### For Templates
+Since Templates are handled by Kentico, any output caching must be handled by the Page Template itself.  The `DocumentID` is added to the response Cache Dependency by default for you.   
+
+If you wish to disable this behavior, you can use the Global Event`DynamicRoutingEvents.RequestRouting.Before` and set the `RequestRoutingEventArgs.Configuration.IncludeDocumentInOutputCache` to false if the `Configuration.ControllerName.Equals("DynamicRouteTemplate", StringComparison.InvariantCultureIgnoreCase); ` 
+
 
 # Contributions, but fixes and License
 Feel free to Fork and submit pull requests to contribute.
