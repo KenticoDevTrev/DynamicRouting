@@ -9,8 +9,9 @@ using System.Web.Mvc;
 
 namespace DynamicRouting.Kentico.MVC
 {
-    public class DynamicRouteController : Controller
+    public class DynamicRouteCachedController : Controller
     {
+        [OutputCache(CacheProfile = "DynamicRouteController")]
         public ActionResult RenderView(bool? IncludeDocumentInOutputCache = null)
         {
             if (!IncludeDocumentInOutputCache.HasValue)
@@ -24,6 +25,7 @@ namespace DynamicRouting.Kentico.MVC
             return View(routeConfig.ViewName);
         }
 
+        [OutputCache(CacheProfile = "DynamicRouteController")]
         public ActionResult RenderViewWithModel(bool? IncludeDocumentInOutputCache = null)
         {
             if (!IncludeDocumentInOutputCache.HasValue)

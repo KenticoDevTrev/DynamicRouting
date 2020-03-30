@@ -37,7 +37,7 @@ namespace DynamicRouting.Kentico.MVC
 
         public void ProcessRequest(HttpContext context)
         {
-            var node = DynamicRouteHelper.GetPage();
+            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: false);
 
             var routePair = ResolveRouteValues(node);
 
@@ -51,6 +51,26 @@ namespace DynamicRouting.Kentico.MVC
             // Use event to allow users to overwrite the Dynamic Routing Data
             using (var RequestRoutingHandler = DynamicRoutingEvents.RequestRouting.StartEvent(RequestArgs))
             {
+                // Check if the OutputCache was disabled or enabled during the event args
+                if (routePair.ControllerName.Equals("DynamicRouteCached", StringComparison.InvariantCultureIgnoreCase) && !routePair.UseOutputCaching)
+                {
+                    routePair.ControllerName = "DynamicRoute";
+                }
+                else if (routePair.ControllerName.Equals("DynamicRoute", StringComparison.InvariantCultureIgnoreCase) && routePair.UseOutputCaching)
+                {
+                    routePair.ControllerName = "DynamicRouteCached";
+                }
+
+                // Handle passing the Include In Output Cache
+                switch (routePair.ControllerName.ToLower())
+                {
+                    case "dynamicroute":
+                    case "dynamicroutecached":
+                    case "dynamicroutetemplate":
+                        RequestArgs.CurrentRequestContext.RouteData.Values["IncludeDocumentInOutputCache"] = routePair.IncludeDocumentInOutputCache;
+                        break;
+                }
+
                 // Setup routing with new values
                 RequestContext.RouteData.Values["Controller"] = routePair.ControllerName;
                 RequestContext.RouteData.Values["Action"] = routePair.ActionName;
@@ -89,12 +109,12 @@ namespace DynamicRouting.Kentico.MVC
 
             if (node is null)
             {
-                return new DynamicRouteConfiguration(defaultController, defaultAction, null, null, DynamicRouteType.Controller);
+                return new DynamicRouteConfiguration(defaultController, defaultAction, null, null, DynamicRouteType.Controller, false, false);
             }
 
             if (PageHasTemplate(node))
             {
-                var PageTemplateRouteConfig = new DynamicRouteConfiguration("DynamicRouteTemplate", "Index", null, null, DynamicRouteType.Controller);
+                var PageTemplateRouteConfig = new DynamicRouteConfiguration("DynamicRouteTemplate", "Index", null, null, DynamicRouteType.Controller, true, false);
                 string PageTemplateControllerName = GetPageTemplateController(node);
 
                 // When the Dynamic Route Template Controller renders the Page Template, the Route Controller needs to match or it won't look in the right spot for the view
@@ -107,7 +127,7 @@ namespace DynamicRouting.Kentico.MVC
 
             if (!DynamicRoutingAnalyzer.TryFindMatch(node.ClassName, out var match))
             {
-                return new DynamicRouteConfiguration(defaultController, defaultAction, null, null, DynamicRouteType.Controller);
+                return new DynamicRouteConfiguration(defaultController, defaultAction, null, null, DynamicRouteType.Controller, false, false);
             }
 
             return match;

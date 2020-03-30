@@ -34,8 +34,9 @@ namespace DynamicRouting
         /// <param name="Culture">The Culture, not needed if the Url contains the culture that the UrlSlug has as part of it's generation.</param>
         /// <param name="SiteName">The Site Name, defaults to current site.</param>
         /// <param name="Columns">List of columns you wish to include in the data returned.</param>
+        /// <param name="AddPageToCacheDependency">If true, the found page will have it's DocumentID added to the request's Output Cache Dependency</param>
         /// <returns>The Page that matches the Url, for the given or matching culture (or default culture if one isn't found).</returns>
-        public static ITreeNode GetPage(string Url = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null)
+        public static ITreeNode GetPage(string Url = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null, bool AddPageToCacheDependency = true)
         {
             // Load defaults
             SiteName = (!string.IsNullOrWhiteSpace(SiteName) ? SiteName : SiteContextSafe().SiteName);
@@ -100,7 +101,13 @@ namespace DynamicRouting
             // set the culture
             Culture = CultureArgs.Culture;
 
-            // Convert Columns to 
+            // Convert Columns to string, must include DocumentID though at all times
+            if (Columns != null && !Columns.Contains("*") && !Columns.Contains("documentid", StringComparer.InvariantCultureIgnoreCase))
+            {
+                var Appended = Columns.ToList();
+                Appended.Add("documentid");
+                Columns = Appended;
+            }
             string ColumnsVal = Columns != null ? string.Join(",", Columns.Distinct()) : "*";
 
             // Create GetPageEventArgs Event ARgs
@@ -127,6 +134,15 @@ namespace DynamicRouting
                 // Return whatever Found Page
                 FoundPage = DynamicRoutingGetPageTaskHandler.EventArguments.FoundPage;
             }
+
+            // Add documentID to the output cache dependencies, we ensured that DocumentID would be returned in the result always.
+            if (FoundPage != null && AddPageToCacheDependency && HttpContext.Current != null && HttpContext.Current.Response != null)
+            {
+                string Key = $"documentid|{FoundPage.DocumentID}";
+                CacheHelper.EnsureDummyKey(Key);
+                HttpContext.Current.Response.AddCacheItemDependency(Key);
+            }
+
             return FoundPage;
         }
 
@@ -137,10 +153,11 @@ namespace DynamicRouting
         /// <param name="Culture">The Culture, not needed if the Url contains the culture that the UrlSlug has as part of it's generation.</param>
         /// <param name="SiteName">The Site Name, defaults to current site.</param>
         /// <param name="Columns">List of columns you wish to include in the data returned.</param>
+        /// <param name="AddPageToCacheDependency">If true, the found page will have it's DocumentID added to the request's Output Cache Dependency</param>
         /// <returns>The Page that matches the Url, for the given or matching culture (or default culture if one isn't found).</returns>
-        public static T GetPage<T>(string Url = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null) where T : ITreeNode
+        public static T GetPage<T>(string Url = "", string Culture = "", string SiteName = "", IEnumerable<string> Columns = null, bool AddPageToCacheDependency = true) where T : ITreeNode
         {
-            return (T)GetPage(Url, Culture, SiteName, Columns);
+            return (T)GetPage(Url, Culture, SiteName, Columns, AddPageToCacheDependency);
         }
 
         /// <summary>

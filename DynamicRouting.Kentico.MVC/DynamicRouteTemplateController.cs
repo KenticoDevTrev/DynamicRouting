@@ -13,9 +13,13 @@ namespace DynamicRouting.Kentico.MVC
         /// <summary>
         /// Gets the node based on the current request url and then renders the template result.
         /// </summary>
-        public ActionResult Index(string TemplateControllerName = null)
+        public ActionResult Index(string TemplateControllerName = null, bool? IncludeDocumentInOutputCache = null)
         {
-            ITreeNode FoundNode = DynamicRouteHelper.GetPage();
+            if (!IncludeDocumentInOutputCache.HasValue)
+            {
+                IncludeDocumentInOutputCache = true;
+            }
+            ITreeNode FoundNode = DynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
             if (FoundNode != null)
             {
                 HttpContext.Kentico().PageBuilder().Initialize(FoundNode.DocumentID);
