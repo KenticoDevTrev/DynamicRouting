@@ -137,7 +137,7 @@ protected void Application_Start()
 ````
 
 ## Caching
-As of version 12.29.10, Output Caching support has been added.
+As of version 12.29.11, Output Caching support has been added.
 
 ### For Dynamic Routes to Controllers
 If your Dynamic Route goes to a custom Controller, calling the `DynamicRouteHelper.GetPage()` will by default add the `documentid|<FoundDocID>` Cache Dependency key to the response.  This means if you add the [OutputCache] attribute on your action, it will clear when the page is updated.  While this is enabled by default, you can disable it by passing in a false for the property `AddPageToCacheDependency`
