@@ -137,7 +137,7 @@ protected void Application_Start()
 ````
 
 ## Caching
-As of version 12.29.10, Output Caching support has been added.
+As of version 12.29.11, Output Caching support has been added.
 
 ### For Dynamic Routes to Controllers
 If your Dynamic Route goes to a custom Controller, calling the `DynamicRouteHelper.GetPage()` will by default add the `documentid|<FoundDocID>` Cache Dependency key to the response.  This means if you add the [OutputCache] attribute on your action, it will clear when the page is updated.  While this is enabled by default, you can disable it by passing in a false for the property `AddPageToCacheDependency`
@@ -225,6 +225,9 @@ If you do not have dependency injection or wish to simply call the logic normall
 
 # Note on automatic Model Casting
 In order for `DynamicRouteHelper.GetPage()` to return the properly typed page (with a Type that matches your page type's generated code), that generated page type's class must be in a discoverable assembly, either the existing project, or in a separate class library that has the `[assembly: AssemblyDiscoverable]` attribute in it's AssemblyInfo.cs.  Otherwise it will return a TreeNode only and won't be able to convert to your Page Type Specific model dynamically, adn will throw an `InvalidCastException`.
+
+# Note on TreeNode.RelativeUrl
+Dynamic Routing overwrites the [RelativeUrl](https://github.com/KenticoDevTrev/DynamicRouting/blob/master/DynamicRouting.Kentico.Base/Overrides/DocumentUrlProviderOverride.cs) property of TreeNode objects.  It does this through a query that uses the `NodeID` and `DocumentCulture` properties.  Be sure your node has these 2 fields populated in order to retrieve the proper path (in case you are selecting only certain columns)
 
 # Acknowledgement, Contributions, but fixes and License
 I want to give a shout out to Sean G. Wright for his help with the MVC routing portion of things.
