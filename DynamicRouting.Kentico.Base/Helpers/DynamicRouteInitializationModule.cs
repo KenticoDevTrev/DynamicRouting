@@ -489,7 +489,7 @@ namespace DynamicRouting.Kentico
                             AlternativeUrlInfoProvider.SetAlternativeUrlInfo(AlternativeUrl);
                             AlternativeUrlChangesFound = true;
                         }
-                        catch (InvalidAlternativeUrlException ex)
+                        catch (InvalidAlternativeUrlException)
                         {
                             // Figure out what to do, it doesn't match the pattern constraints.
                         }

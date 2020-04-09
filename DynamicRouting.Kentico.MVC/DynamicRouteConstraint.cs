@@ -2,11 +2,20 @@
 using System.Web;
 using System.Web.Routing;
 using CMS.Helpers;
+using DynamicRouting.Implementations;
+using DynamicRouting.Interfaces;
 
 namespace DynamicRouting.Kentico.MVC
 {
     public class DynamicRouteConstraint : IRouteConstraint
     {
+
+        private IDynamicRouteHelper mDynamicRouteHelper;
+        public DynamicRouteConstraint()
+        {
+            mDynamicRouteHelper = new BaseDynamicRouteHelper();
+        }
+
         /// <summary>
         /// Returns true if a Page is found using the Dynamic Routing
         /// </summary>
@@ -27,7 +36,7 @@ namespace DynamicRouting.Kentico.MVC
                 return false;
             }
 
-            var page = DynamicRouteHelper.GetPage(AddPageToCacheDependency: false);
+            var page = mDynamicRouteHelper.GetPage(AddPageToCacheDependency: false);
             return page != null && !DynamicRouteInternalHelper.UrlSlugExcludedClassNames().Contains(page.ClassName.ToLower());
         }
     }

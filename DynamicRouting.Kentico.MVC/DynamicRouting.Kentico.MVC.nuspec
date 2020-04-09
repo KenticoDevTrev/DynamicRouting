@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Added Staging support for custom Url Slugs, fixed bug with Alternate Urls not staging, added Clear and Rebuild to Quick Operations, added support for OutputCaching for Dynamic Routing.</releaseNotes>
+    <releaseNotes>Converted DynamicRouteHelper into an interface IDynamicRouteHelper so UnitTesting is supported. Added BaseDynamicRouteHelper and added Obsolete on normal DynamicRouteHelper class with instructions on autofac hookup.</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>

@@ -1,6 +1,8 @@
 ﻿using CMS.DataEngine;
 using CMS.Helpers;
 using CMS.SiteProvider;
+using DynamicRouting.Implementations;
+using DynamicRouting.Interfaces;
 using Kentico.PageBuilder.Web.Mvc;
 using Kentico.Web.Mvc;
 using System;
@@ -11,6 +13,12 @@ namespace DynamicRouting.Kentico.MVC
     
     public class DynamicRouteCachedController : Controller
     {
+        private IDynamicRouteHelper mDynamicRouteHelper;
+        public DynamicRouteCachedController()
+        {
+            mDynamicRouteHelper = new BaseDynamicRouteHelper();
+        }
+
         /// <summary>
         /// Renders the Dynamic Route View (no model)
         /// </summary>
@@ -23,8 +31,8 @@ namespace DynamicRouting.Kentico.MVC
                 IncludeDocumentInOutputCache = DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency();
             }
             // Get default Add Page to Output Dependency
-            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
-            var routeConfig = DynamicRouteHelper.GetRouteConfiguration(node);
+            var node = mDynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
+            var routeConfig = mDynamicRouteHelper.GetRouteConfiguration(node);
             HttpContext.Kentico().PageBuilder().Initialize(node.DocumentID);
 
             return View(routeConfig.ViewName);
@@ -41,8 +49,8 @@ namespace DynamicRouting.Kentico.MVC
             {
                 IncludeDocumentInOutputCache = DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency();
             }
-            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
-            var routeConfig = DynamicRouteHelper.GetRouteConfiguration(node);
+            var node = mDynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
+            var routeConfig = mDynamicRouteHelper.GetRouteConfiguration(node);
             HttpContext.Kentico().PageBuilder().Initialize(node.DocumentID);
 
             // Convert type
@@ -68,7 +76,7 @@ namespace DynamicRouting.Kentico.MVC
         /// <returns></returns>
         public ActionResult RouteValuesNotFound()
         {
-            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency());
+            var node = mDynamicRouteHelper.GetPage(AddPageToCacheDependency: DynamicRouteInternalHelper.GetDefaultAddPageToCacheDependency());
             return Content($"<h1>No Route Value Found</h1><p>No DynamicRouting assembly tag was found for the class <strong>{node.ClassName}</strong>, could not route page {node.NodeAliasPath}</p>");
         }
     }
