@@ -345,6 +345,47 @@ Here are some samples:
 ## DynamicRoutingEvents
 I have also included 3 Global Event hooks for you to leverage. DynamicRoutingEvents.GetPage.Before/After, DynamicRoutingEvents.GetCulture.Before/After, and DynamicRoutingEvents.RequestRouting.Before/After, which allow you to customize the logic of getting the page or the culture (in case you wish to implement some custom functionality), or the Routing itself.
 
+# IDynamicRouteHelper Interface
+The `DynamicRouteHelper` static class has been obsoleted as of 12.29.12, and instead it is recommended that use the `IDynamicRouteHelper` interface.  
+
+## Setup Using Dependency Injection
+You can wire it up with Autofac or a similar dependency injection system using a command similar to this:
+
+``` csharp
+var builder = new ContainerBuilder();
+...
+builder.RegisterType(typeof(BaseDynamicRouteHelper)).As(typeof(IDynamicRouteHelper));
+...
+// Autowire Property Injection for controllers (can't have constructor injection)
+var allControllers = Assembly.GetExecutingAssembly().GetTypes().Where(type => typeof(Controller).IsAssignableFrom(type));
+foreach (var controller in allControllers)
+{
+	builder.RegisterType(controller).PropertiesAutowired();
+}
+```
+
+Then you can leverage it in your classes like this:
+
+``` csharp
+
+public class ListController : Controller
+{
+	private IDynamicRouteHelper mDynamicRouteHelper;
+	public ListController(IDynamicRouteHelper mDynamicRouteHelper)
+	{
+		this.mDynamicRouteHelper = mDynamicRouteHelper;
+	}
+	public ActionResult Listing()
+	{
+		var Page = mDynamicRouteHelper.GetPage();
+		...
+	}
+}
+```
+
+## Manual Usage (not recommended)
+If you do not have dependency injection or wish to simply call the logic normally, you can use the default Implentation `new BaseDynamicRouteHelper().GetPage()`
+
 # Note on automatic Model Casting
 In order for `DynamicRouteHelper.GetPage()` to return the properly typed page (with a Type that matches your page type's generated code), that generated page type's class must be in a discoverable assembly, either the existing project, or in a separate class library that has the `[assembly: AssemblyDiscoverable]` attribute in it's AssemblyInfo.cs.  Otherwise it will return a TreeNode only and won't be able to convert to your Page Type Specific model dynamically, adn will throw an `InvalidCastException`.
 

@@ -1,6 +1,6 @@
 ﻿using CMS.Base;
 using CMS.Helpers;
-using CMS.SiteProvider;
+using DynamicRouting.Implementations;
 using System;
 using System.Web;
 
@@ -61,6 +61,7 @@ namespace DynamicRouting.Kentico.MVCOnly.Helpers
 
         public static string GetCleanUrl(string Url, string SiteName = "")
         {
+            var DynamicRouteHelper = new BaseDynamicRouteHelper();
             // Remove trailing or double //'s and any url parameters / anchors
             Url = "/" + Url.Trim("/ ".ToCharArray()).Split('?')[0].Split('#')[0];
             Url = HttpUtility.UrlDecode(Url);

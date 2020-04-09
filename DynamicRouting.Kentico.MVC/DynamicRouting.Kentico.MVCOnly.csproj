@@ -544,6 +544,8 @@
     <Compile Include="Events\GetPageEventHandler.cs" />
     <Compile Include="Events\RequestRoutingEventArgs.cs" />
     <Compile Include="Events\RequestRoutingEventHandler.cs" />
+    <Compile Include="Implementations\DynamicRouteHelper.cs" />
+    <Compile Include="Interfaces\IDynamicRouteHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StaticRoutePriorityAttribute.cs" />
     <Compile Include="StaticRoutePriorityConstraint.cs" />

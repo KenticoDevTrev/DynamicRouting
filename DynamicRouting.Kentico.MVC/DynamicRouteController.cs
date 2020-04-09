@@ -1,4 +1,6 @@
-﻿using Kentico.PageBuilder.Web.Mvc;
+﻿using DynamicRouting.Implementations;
+using DynamicRouting.Interfaces;
+using Kentico.PageBuilder.Web.Mvc;
 using Kentico.Web.Mvc;
 using System;
 using System.Collections.Generic;
@@ -11,14 +13,20 @@ namespace DynamicRouting.Kentico.MVC
 {
     public class DynamicRouteController : Controller
     {
+        private IDynamicRouteHelper mDynamicRouteHelper;
+        public DynamicRouteController()
+        {
+            mDynamicRouteHelper = new BaseDynamicRouteHelper();
+        }
+
         public ActionResult RenderView(bool? IncludeDocumentInOutputCache = null)
         {
             if (!IncludeDocumentInOutputCache.HasValue)
             {
                 IncludeDocumentInOutputCache = true;
             }
-            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
-            var routeConfig = DynamicRouteHelper.GetRouteConfiguration(node);
+            var node = mDynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
+            var routeConfig = mDynamicRouteHelper.GetRouteConfiguration(node);
             HttpContext.Kentico().PageBuilder().Initialize(node.DocumentID);
 
             return View(routeConfig.ViewName);
@@ -30,8 +38,8 @@ namespace DynamicRouting.Kentico.MVC
             {
                 IncludeDocumentInOutputCache = true;
             }
-            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
-            var routeConfig = DynamicRouteHelper.GetRouteConfiguration(node);
+            var node = mDynamicRouteHelper.GetPage(AddPageToCacheDependency: IncludeDocumentInOutputCache.Value);
+            var routeConfig = mDynamicRouteHelper.GetRouteConfiguration(node);
             HttpContext.Kentico().PageBuilder().Initialize(node.DocumentID);
 
             // Convert type
@@ -54,7 +62,7 @@ namespace DynamicRouting.Kentico.MVC
 
         public ActionResult RouteValuesNotFound()
         {
-            var node = DynamicRouteHelper.GetPage();
+            var node = mDynamicRouteHelper.GetPage();
             return Content($"<h1>No Route Value Found</h1><p>No DynamicRouting assembly tag was found for the class <strong>{node.ClassName}</strong>, could not route page {node.NodeAliasPath}</p>");
         }
     }

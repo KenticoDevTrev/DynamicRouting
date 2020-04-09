@@ -6,6 +6,8 @@ using System.Web.SessionState;
 using CMS.Base;
 using CMS.DataEngine;
 using CMS.Helpers;
+using DynamicRouting.Implementations;
+using DynamicRouting.Interfaces;
 using Kentico.PageBuilder.Web.Mvc;
 using Kentico.PageBuilder.Web.Mvc.PageTemplates;
 using Newtonsoft.Json.Linq;
@@ -16,13 +18,14 @@ namespace DynamicRouting.Kentico.MVC
     public class DynamicHttpHandler : IHttpHandler, IRequiresSessionState
     {
         private readonly IComponentDefinitionProvider<PageTemplateDefinition> _pageTemplateDefinitionProvider;
-
+        private readonly IDynamicRouteHelper mDynamicRouteHelper;
         public RequestContext RequestContext { get; set; }
 
         public DynamicHttpHandler(RequestContext requestContext)
         {
             RequestContext = requestContext;
             _pageTemplateDefinitionProvider = new ComponentDefinitionProvider<PageTemplateDefinition>();
+            mDynamicRouteHelper = new BaseDynamicRouteHelper();
         }
 
 
@@ -37,7 +40,7 @@ namespace DynamicRouting.Kentico.MVC
 
         public void ProcessRequest(HttpContext context)
         {
-            var node = DynamicRouteHelper.GetPage(AddPageToCacheDependency: false);
+            var node = mDynamicRouteHelper.GetPage(AddPageToCacheDependency: false);
 
             var routePair = ResolveRouteValues(node);
 
