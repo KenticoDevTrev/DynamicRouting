@@ -17,6 +17,12 @@ namespace DynamicRouting.Kentico.MVC
 
         public bool Match(HttpContextBase httpContext, Route route, string parameterName, RouteValueDictionary values, RouteDirection routeDirection)
         {
+            // Do not use Dynamic Routing for UrlGeneration
+            if(routeDirection == RouteDirection.UrlGeneration)
+            {
+                return false;
+            }
+
             string controllerName = values.ContainsKey("controller")
                     ? ValidationHelper.GetString(values["controller"], "")
                     : "";
