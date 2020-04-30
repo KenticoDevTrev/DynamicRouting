@@ -1,5 +1,6 @@
 ﻿using CMS.Base;
 using CMS.DocumentEngine;
+using DynamicRouting.Implementations;
 using DynamicRouting.Interfaces;
 using Kentico.PageBuilder.Web.Mvc;
 using Kentico.PageBuilder.Web.Mvc.PageTemplates;
@@ -12,9 +13,10 @@ namespace DynamicRouting.Kentico.MVC
     public class DynamicRouteTemplateController : PageTemplateController
     {
         private IDynamicRouteHelper mDynamicRouteHelper;
-        public DynamicRouteTemplateController(IDynamicRouteHelper mDynamicRouteHelper)
+
+        public DynamicRouteTemplateController()
         {
-            this.mDynamicRouteHelper = mDynamicRouteHelper;
+            this.mDynamicRouteHelper = new BaseDynamicRouteHelper();
         }
 
         /// <summary>
