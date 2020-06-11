@@ -135,6 +135,10 @@ protected void Application_Start()
     }
 
 ````
+## Required Columns
+It is often best to minimize the columns returned from your TreeNodes, so you do not send back extra data.  Dynamic Routing overwrites the `TreeNode.RelativeUrl` and does a lookup on the Url slug when retrieving this value.  It requires 2 fields, `NodeID` and `DocumentCulture` for this so you may need to include those.
+
+If you do any overwriting of the GlobalEvents It also uses `DocumentID` and `ClassName` when it's doing it's own internal routing, which probably won't concern you unless you are overwriting the GlobalEvents for DynamicRouting.
 
 ## Caching
 As of version 12.29.11, Output Caching support has been added.
