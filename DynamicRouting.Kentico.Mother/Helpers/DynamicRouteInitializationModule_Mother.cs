@@ -35,7 +35,7 @@ namespace DynamicRouting.Kentico.Mother
                 e.Manifest.Metadata.IconUrl = "http://www.kentico.com/favicon.ico";
                 e.Manifest.Metadata.Copyright = "Copyright 2019 Kentico Community";
                 e.Manifest.Metadata.Title = "Dynamic Routing for Kentico v12 SP";
-                e.Manifest.Metadata.ReleaseNotes = "Added Staging support for custom Url Slugs, fixed bug with Alternate Urls not staging, added Clear and Rebuild to Quick Operations, added support for OutputCaching for Dynamic Routing.";
+                e.Manifest.Metadata.ReleaseNotes = "Fixed a bug where conflicts were detected across sites instead of only detecting conflicts within the same site.";
             }
         }
     }

@@ -1,4 +1,5 @@
-﻿using CMS.DocumentEngine;
+﻿using CMS.DataEngine;
+using CMS.DocumentEngine;
 using CMS.EventLog;
 using CMS.Helpers;
 using CMS.Localization;
@@ -144,6 +145,8 @@ namespace DynamicRouting
             }
 
             var SlugQuery = UrlSlugInfoProvider.GetUrlSlugs()
+                .Source(x => x.Join(new QuerySourceTable("CMS_Tree", null, new string[] { }), new WhereCondition("NodeID = UrlSlugNodeID"), JoinTypeEnum.Inner))
+                .Columns(new string[] { "UrlSlugID", "UrlSlugGuid", "UrlSlugLastModified", "UrlSlug", "UrlSlugNodeID", "UrlSlugCultureCode", "UrlSlugIsCustom", "NodeSiteID" })
                 .WhereEquals("UrlSlugNodeID", NodeID);
 
             // If not checking for updates (rebuild), then the only ones we want to keep are the Custom Url Slugs.
@@ -157,6 +160,7 @@ namespace DynamicRouting
             {
                 UrlSlugs.Add(new NodeUrlSlug()
                 {
+                    SiteID = ExistingSlug.GetIntegerValue("NodeSiteID", 1),
                     IsCustom = ExistingSlug.UrlSlugIsCustom,
                     IsDefault = ExistingSlug.UrlSlugCultureCode.Equals(Settings.DefaultCultureCode, StringComparison.InvariantCultureIgnoreCase),
                     CultureCode = ExistingSlug.UrlSlugCultureCode,
@@ -237,6 +241,7 @@ namespace DynamicRouting
 
                     var NodeSlug = new NodeUrlSlug()
                     {
+                        SiteID = Document.NodeSiteID,
                         CultureCode = CultureCode,
                         IsCustom = false,
                         IsDefault = IsDefaultCulture,
@@ -319,6 +324,7 @@ namespace DynamicRouting
                     var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
                         .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
                         .WhereNotEquals("UrlSlugNodeID", NodeID)
+                        .Where($"UrlSlugNodeID in (Select NodeID from CMS_Tree where NodeSiteID = {UrlSlug.SiteID})")
                         .FirstOrDefault();
                     if (MatchingUrlSlug != null)
                     {
@@ -360,6 +366,7 @@ namespace DynamicRouting
                     var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
                         .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
                         .WhereNotEquals("UrlSlugNodeID", NodeID)
+                        .Where($"UrlSlugNodeID in (Select NodeID from CMS_Tree where NodeSiteID = {UrlSlug.SiteID})")
                         .FirstOrDefault();
                     if (MatchingUrlSlug != null)
                     {
@@ -404,6 +411,7 @@ namespace DynamicRouting
                         var MatchingUrlSlug = UrlSlugInfoProvider.GetUrlSlugs()
                             .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
                             .WhereNotEquals("UrlSlugNodeID", NodeID)
+                            .Where($"UrlSlugNodeID in (Select NodeID from CMS_Tree where NodeSiteID = {UrlSlug.SiteID})")
                             .FirstOrDefault();
                         if (MatchingUrlSlug != null)
                         {
@@ -428,6 +436,7 @@ namespace DynamicRouting
                                     ExistingFound = UrlSlugInfoProvider.GetUrlSlugs()
                                         .WhereEquals("UrlSlug", UrlSlug.UrlSlug)
                                         .WhereNotEquals("UrlSlugNodeID", NodeID)
+                                        .Where($"UrlSlugNodeID in (Select NodeID from CMS_Tree where NodeSiteID = {UrlSlug.SiteID})")
                                         .FirstOrDefault() != null;
                                 }
                             }
