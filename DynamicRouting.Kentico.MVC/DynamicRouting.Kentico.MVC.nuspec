@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Fixed error where UrlGeneration routes were being trapped by the Dynamic Route so the Url.Action didn't operate correctly.</releaseNotes>
+    <releaseNotes>Fixed a bug where conflicts were detected across sites instead of only detecting conflicts within the same site.</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>
