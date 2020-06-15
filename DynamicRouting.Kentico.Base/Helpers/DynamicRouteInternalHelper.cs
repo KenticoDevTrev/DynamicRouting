@@ -563,18 +563,24 @@ namespace DynamicRouting
         /// </summary>
         public static void ClearStuckUrlGenerationTasks()
         {
-            Process currentProcess = Process.GetCurrentProcess();
-
-            // Set any threads by this application that shows it's running but the Thread doesn't actually exist.
-            SlugGenerationQueueInfoProvider.GetSlugGenerationQueues()
+            // if no live threads have dynamic routing and there are some that show running, clear them.
+            if(SlugGenerationQueueInfoProvider.GetSlugGenerationQueues()
                 .WhereEquals("SlugGenerationQueueRunning", true)
                 .WhereEquals("SlugGenerationQueueApplicationID", SystemHelper.ApplicationIdentifier)
-                .WhereNotIn("SlugGenerationQueueThreadID", currentProcess.Threads.Cast<ProcessThread>().Select(x => x.Id).ToArray())
+                .Count > 0 && 
+                ThreadDebug.LiveThreadItems.Where(x => DataHelper.GetNotEmpty(x.MethodClassName, "").StartsWith("DynamicRouting", StringComparison.InvariantCultureIgnoreCase)).Count() == 0) {
+                
+                SlugGenerationQueueInfoProvider.GetSlugGenerationQueues()
+                .WhereEquals("SlugGenerationQueueRunning", true)
+                .WhereEquals("SlugGenerationQueueApplicationID", SystemHelper.ApplicationIdentifier)
                 .ForEachObject(x =>
                 {
                     x.SlugGenerationQueueRunning = false;
+                    x.SetValue("SlugGenerationQueueThreadID", null);
+                    x.SetValue("SlugGenerationQueueApplicationID", null);
                     SlugGenerationQueueInfoProvider.SetSlugGenerationQueueInfo(x);
                 });
+            }
         }
 
         /// <summary>
@@ -616,6 +622,7 @@ namespace DynamicRouting
             SlugGenerationQueueInfo ItemToRun = SlugGenerationQueueInfoProvider.GetSlugGenerationQueues()
                 .WhereEquals("SlugGenerationQueueRunning", 1)
                 .WhereEquals("SlugGenerationQueueApplicationID", SystemHelper.ApplicationIdentifier)
+                .WhereEmpty("SlugGenerationQueueThreadID")
                 .FirstOrDefault();
             if (ItemToRun == null)
             {
