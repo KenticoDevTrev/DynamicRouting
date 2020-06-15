@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Fixed a bug where conflicts were detected across sites instead of only detecting conflicts within the same site.</releaseNotes>
+    <releaseNotes>Error causing running queue items to run on multiple threads, this fixes it where both it would not run multiple threads on a running item, and also properly detect threads that are running and not-unstuck them.</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>
