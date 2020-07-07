@@ -559,7 +559,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\MVCCaching\MVCCaching\MVCCaching.csproj">
+    <ProjectReference Include="..\DynamicRouting.Kentico.Mother\DynamicRouting.Kentico.csproj">
       <Project>{60d45549-bb62-4999-8f29-987b58b33127}</Project>
       <Name>MVCCaching</Name>
     </ProjectReference>
