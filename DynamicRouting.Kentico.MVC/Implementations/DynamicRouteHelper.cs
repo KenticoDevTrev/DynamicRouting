@@ -160,7 +160,7 @@ namespace DynamicRouting.Implementations
                                 }
                                 else
                                 {
-                                    Query.PublishedVersion(true);
+                                    Query.Published();
                                 }
 
                                 TreeNode Page = Query.FirstOrDefault();
@@ -168,17 +168,11 @@ namespace DynamicRouting.Implementations
                                 // Cache dependencies on the Url Slugs and also the DocumentID if available.
                                 if (cs.Cached)
                                 {
-                                    if (Page != null)
-                                    {
-                                        cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
-                            "dynamicrouting.urlslug|all",
-                            "documentid|" + Page.DocumentID,  });
-                                    }
-                                    else
-                                    {
-                                        cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] { "dynamicrouting.urlslug|all" });
-                                    }
 
+                                    cs.CacheDependency = CacheHelper.GetCacheDependency(new string[] {
+                                        "dynamicrouting.urlslug|all",
+                                        "documentid|" + DocumentID  
+                                    });
                                 }
 
                                 // Return Page Data
