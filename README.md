@@ -233,7 +233,7 @@ In order for `DynamicRouteHelper.GetPage()` to return the properly typed page (w
 # Note on TreeNode.RelativeUrl
 Dynamic Routing overwrites the [RelativeUrl](https://github.com/KenticoDevTrev/DynamicRouting/blob/master/DynamicRouting.Kentico.Base/Overrides/DocumentUrlProviderOverride.cs) property of TreeNode objects.  It does this through a query that uses the `NodeID` and `DocumentCulture` properties.  Be sure your node has these 2 fields populated in order to retrieve the proper path (in case you are selecting only certain columns)
 
-# Acknowledgement, Contributions, but fixes and License
+# Acknowledgement, Contributions, bug fixes and License
 I want to give a shout out to Sean G. Wright for his help with the MVC routing portion of things.
 
 Also a big thanks to [Heartland Business Systems](https://www.hbs.net) for giving me the time to work on this, they have in essence funded this extension (and i've sunk over 70 hours into building it).
