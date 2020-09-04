@@ -103,6 +103,9 @@ namespace DynamicRouting.Kentico
             DocumentEvents.Update.After += Document_Update_After;
             WorkflowEvents.Publish.After += Document_Publish_After;
 
+            // Check if Node Alias changes, which will trigger an Update but not a publish so need special handling for pages on workflow and already published
+            DocumentEvents.Update.Before += Document_Update_Before;
+
             // Handle 301 Redirect creation on Url Slug updates
             UrlSlugInfo.TYPEINFO.Events.Update.Before += UrlSlug_Update_Before_301Redirect;
 
@@ -116,13 +119,25 @@ namespace DynamicRouting.Kentico
             // Add better name for tasks
             StagingEvents.LogTask.Before += LogTask_Before;
 
+            // Remove "Add Url Slug" events caused by staging task generation from multi-tier environments
+            StagingEvents.LogTask.After += LogTask_After;
+
             // Handle the URL Slug events manually, will be checking for changes and adjusting.
             StagingEvents.ProcessTask.Before += StagingTask_ProcessTask_Before;
         }
 
+
+        private void LogTask_After(object sender, StagingLogTaskEventArgs e)
+        {
+            if (e.Task.TaskObjectType != null && e.Task.TaskObjectType.Equals("dynamicrouting.urlslug", StringComparison.InvariantCultureIgnoreCase) && e.Task.TaskType == TaskTypeEnum.CreateObject)
+            {
+                e.Task.Delete();
+            }
+        }
+
         private void LogTask_Before(object sender, StagingLogTaskEventArgs e)
         {
-            if (e.Task.TaskTitle.IndexOf("Update Url Slug", StringComparison.InvariantCultureIgnoreCase) == 0)
+            if (e.Task.TaskObjectType != null && e.Task.TaskObjectType.Equals("dynamicrouting.urlslug", StringComparison.InvariantCultureIgnoreCase) && e.Task.TaskType == TaskTypeEnum.UpdateObject)
             {
                 // Update the TItle
                 UrlSlugInfo UrlSlug = (UrlSlugInfo)e.Object;
@@ -569,6 +584,31 @@ namespace DynamicRouting.Kentico
             #endregion
         }
 
+
+        private void Document_Update_Before(object sender, DocumentEventArgs e)
+        {
+            if (e.Node.WorkflowStep != null && e.Node.WorkflowStep.StepIsPublished)
+            {
+                // Check if the node alias changed
+                var CurrentNode = new DocumentQuery()
+                    .WhereEquals(nameof(TreeNode.NodeID), e.Node.NodeID)
+                    .Columns(new string[] { nameof(TreeNode.NodeAliasPath), nameof(TreeNode.NodeAlias) })
+                    .FirstOrDefault();
+                if (CurrentNode != null && (CurrentNode.NodeAliasPath != e.Node.NodeAliasPath || CurrentNode.NodeAlias != e.Node.NodeAlias))
+                {
+                    RecursionControl NodeAliasChangedTrigger = new RecursionControl("DynamicRouting_NodeAliasChanged_" + e.Node.NodeID);
+                    var triggered = NodeAliasChangedTrigger.Continue;
+                    // Document_update triggers twice during publish, so this will prevent double hit catch on it.
+                    RecursionControl NodeAliasChangedSecondCheckTrigger = new RecursionControl("DynamicRouting_NodeAliasChangedSecondCheck_" + e.Node.NodeID);
+                    var triggered2 = NodeAliasChangedSecondCheckTrigger.Continue;
+
+                    // Third check is if it does publish, if an update is triggered to the url alises from that, this won't hit again.
+                    RecursionControl NodeAliasChangedThirdCheckTrigger = new RecursionControl("DynamicRouting_NodeAliasChangedThirdCheck_" + e.Node.NodeID);
+                    var triggered3 = NodeAliasChangedThirdCheckTrigger.Continue;
+                }
+            }
+        }
+
         private void Document_Update_After(object sender, DocumentEventArgs e)
         {
             // Update the document itself, only if there is no workflow
@@ -580,9 +620,29 @@ namespace DynamicRouting.Kentico
                 }
                 else
                 {
-                    if (e.Node.WorkflowStep.StepIsPublished && DynamicRouteInternalHelper.ErrorOnConflict())
+                    if (e.Node.WorkflowStep.StepIsPublished)
                     {
-                        DynamicRouteEventHelper.DocumentInsertUpdated_CheckOnly(e.Node.NodeID);
+                        RecursionControl NodeAliasChangedTrigger = new RecursionControl("DynamicRouting_NodeAliasChanged_" + e.Node.NodeID);
+                        // Will be false if the Document_Update_Before noted that the node alias changed 
+                        if (NodeAliasChangedTrigger.Continue == false)
+                        {
+                            RecursionControl NodeAliasChangedSecondCheckTrigger = new RecursionControl("DynamicRouting_NodeAliasChangedSecondCheck_" + e.Node.NodeID);
+                            // Only run if this is the first time here.
+                            if (NodeAliasChangedSecondCheckTrigger.Continue == false)
+                            {
+                                RecursionControl NodeAliasChangedThirdCheckTrigger = new RecursionControl("DynamicRouting_NodeAliasChangedThirdCheck_" + e.Node.NodeID);
+                                if (NodeAliasChangedThirdCheckTrigger.Continue == false)
+                                {
+                                    // Node alias changed, need to trigger an update
+                                    DynamicRouteEventHelper.DocumentInsertUpdated(e.Node.NodeID);
+                                }
+                            }
+                        }
+                        else if (DynamicRouteInternalHelper.ErrorOnConflict())
+                        {
+                            // Perform check only
+                            DynamicRouteEventHelper.DocumentInsertUpdated_CheckOnly(e.Node.NodeID);
+                        }
                     }
                 }
             }

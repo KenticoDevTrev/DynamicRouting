@@ -35,7 +35,7 @@ namespace DynamicRouting.Kentico.Mother
                 e.Manifest.Metadata.IconUrl = "http://www.kentico.com/favicon.ico";
                 e.Manifest.Metadata.Copyright = "Copyright 2019 Kentico Community";
                 e.Manifest.Metadata.Title = "Dynamic Routing for Kentico v12 SP";
-                e.Manifest.Metadata.ReleaseNotes = "Error causing running queue items to run on multiple threads, this fixes it where both it would not run multiple threads on a running item, and also properly detect threads that are running and not-unstuck them.";
+                e.Manifest.Metadata.ReleaseNotes = "Remove 'Create URL Slug' task generation from recreated tasks in staging module, also fix if a workflow-ed publish page has an alias change, it properly triggers a URL Slug and page update.";
             }
         }
     }
