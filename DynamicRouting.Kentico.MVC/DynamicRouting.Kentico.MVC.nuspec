@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Fixed issue #32 - If page was unpublished the cache dependency wasn't properly set.</releaseNotes>
+    <releaseNotes>Fixed bug with Culture Variant URL Slugs not having proper DocumentCulture if document didn't exist.</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>

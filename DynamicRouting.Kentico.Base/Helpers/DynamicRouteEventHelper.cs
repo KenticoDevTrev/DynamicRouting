@@ -32,6 +32,18 @@
             DynamicRouteInternalHelper.RebuildRoutesByClass(ClassName);
         }
 
+        public static void ExcludedClassesChanged(string SiteName = null)
+        {
+            if (!string.IsNullOrWhiteSpace(SiteName))
+            {
+                DynamicRouteInternalHelper.RebuildRoutesBySite(SiteName);
+            } else
+            {
+                DynamicRouteInternalHelper.RebuildRoutes();
+
+            }
+        }
+
         /// <summary>
         /// Build ParentNodes, and Parent's immediate children, build the children and update recursively only if changes detected.
         /// </summary>

@@ -947,6 +947,21 @@ namespace DynamicRouting.Kentico
                         LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Settings Key Update After for Key {Key.KeyName}");
                     }
                     break;
+                case "urlslugexcludedclasses":
+                    try
+                    {
+                        DynamicRouteEventHelper.ExcludedClassesChanged(Key.SiteID > 0 ? SiteInfoProvider.GetSiteName(Key.SiteID) : null);
+                    }
+                    catch (UrlSlugCollisionException ex)
+                    {
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "UrlSlugConflict", $"Occurred on Settings Key Update After for Key {Key.KeyName}");
+                        e.Cancel();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogErrorsInSeparateThread(ex, "DynamicRouting", "Error", $"Occurred on Settings Key Update After for Key {Key.KeyName}");
+                    }
+                    break;
             }
         }
 

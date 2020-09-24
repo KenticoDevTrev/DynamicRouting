@@ -181,7 +181,7 @@ namespace DynamicRouting
                 var DocQuery = DocumentHelper.GetDocuments(ClassName)
                     .WhereEquals("NodeID", NodeID)
                     .Culture(CultureCode)
-                    .CombineWithDefaultCulture(IsDefaultCulture || Settings.GenerateIfCultureDoesntExist);
+                    .CombineWithDefaultCulture(IsDefaultCulture);
 
                 if (UseCurrentVersion)
                 {
