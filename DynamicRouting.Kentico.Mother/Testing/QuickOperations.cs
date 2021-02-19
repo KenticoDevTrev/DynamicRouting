@@ -2,6 +2,7 @@
 using CMS.DataEngine;
 using CMS.DocumentEngine;
 using CMS.EventLog;
+using CMS.Membership;
 using CMS.SiteProvider;
 using CMS.UIControls;
 using DynamicRouting;
@@ -14,6 +15,19 @@ namespace CMSApp.CMSModules.DynamicRouting
 {
     public partial class QuickOperations : CMSPage
     {
+        protected override void OnPreInit(EventArgs e)
+        {
+            CurrentUserInfo currentUser = MembershipContext.AuthenticatedUser;
+
+            // Ensure access
+            if (!currentUser.IsAuthorizedPerResource("DynamicRouting.Kentico", "Read"))
+            {
+                RedirectToAccessDenied("DynamicRouting.Kentico", "Read");
+            }
+
+            base.OnPreInit(e);
+        }
+
         protected void Page_Load(object sender, EventArgs e)
         {
 

@@ -10,7 +10,7 @@
     <iconUrl>http://www.kentico.com/favicon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Fixed bug with Culture Variant URL Slugs not having proper DocumentCulture if document didn't exist.</releaseNotes>
+    <releaseNotes>Fixed bug in the LocalizationContext using the CultureName vs. CultureCode</releaseNotes>
     <copyright>Copyright 2019 Kentico Community</copyright>
     <tags>Dynamic Routing, Kentico, MVC</tags>
   </metadata>

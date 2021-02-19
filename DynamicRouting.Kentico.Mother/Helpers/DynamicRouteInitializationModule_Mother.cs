@@ -35,7 +35,7 @@ namespace DynamicRouting.Kentico.Mother
                 e.Manifest.Metadata.IconUrl = "http://www.kentico.com/favicon.ico";
                 e.Manifest.Metadata.Copyright = "Copyright 2019 Kentico Community";
                 e.Manifest.Metadata.Title = "Dynamic Routing for Kentico v12 SP";
-                e.Manifest.Metadata.ReleaseNotes = "Fixed bug with Culture Variant URL Slugs not having proper DocumentCulture if document didn't exist.";
+                e.Manifest.Metadata.ReleaseNotes = "Added Security (Read permissioN) to Quick Operations, fixed Culture bug.";
             }
         }
     }
