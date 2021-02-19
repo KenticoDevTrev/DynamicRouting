@@ -82,7 +82,7 @@ namespace DynamicRouting.Implementations
                 {
                     try
                     {
-                        CultureArgs.Culture = LocalizationContext.CurrentCulture.CultureName;
+                        CultureArgs.Culture = LocalizationContext.CurrentCulture.CultureCode;
                     }
                     catch (Exception) { }
                 }

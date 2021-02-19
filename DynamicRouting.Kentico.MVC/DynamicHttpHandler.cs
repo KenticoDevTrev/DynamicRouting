@@ -1,17 +1,17 @@
 ﻿using System;
-using System.Linq;
 using System.Web;
 using System.Web.Mvc;
-using System.Web.SessionState;
 using CMS.Base;
 using CMS.DataEngine;
 using CMS.Helpers;
-using DynamicRouting.Implementations;
-using DynamicRouting.Interfaces;
+using RequestContext = System.Web.Routing.RequestContext;
+using System.Web.SessionState;
 using Kentico.PageBuilder.Web.Mvc;
 using Kentico.PageBuilder.Web.Mvc.PageTemplates;
 using Newtonsoft.Json.Linq;
-using RequestContext = System.Web.Routing.RequestContext;
+using System.Linq;
+using DynamicRouting.Interfaces;
+using DynamicRouting.Implementations;
 
 namespace DynamicRouting.Kentico.MVC
 {
@@ -28,8 +28,6 @@ namespace DynamicRouting.Kentico.MVC
             mDynamicRouteHelper = new BaseDynamicRouteHelper();
         }
 
-
-
         public bool IsReusable
         {
             get
@@ -38,6 +36,10 @@ namespace DynamicRouting.Kentico.MVC
             }
         }
 
+        /// <summary>
+        /// Gets the page, and based on the Class of the Page, attempts to get the Dynamic routing information and processes.
+        /// </summary>
+        /// <param name="context"></param>
         public void ProcessRequest(HttpContext context)
         {
             var node = mDynamicRouteHelper.GetPage(AddPageToCacheDependency: false);
@@ -63,7 +65,7 @@ namespace DynamicRouting.Kentico.MVC
                 {
                     routePair.ControllerName = "DynamicRouteCached";
                 }
-
+                
                 // Handle passing the Include In Output Cache
                 switch (routePair.ControllerName.ToLower())
                 {
@@ -75,8 +77,13 @@ namespace DynamicRouting.Kentico.MVC
                 }
 
                 // Setup routing with new values
-                RequestContext.RouteData.Values["Controller"] = routePair.ControllerName;
-                RequestContext.RouteData.Values["Action"] = routePair.ActionName;
+                RequestArgs.CurrentRequestContext.RouteData.Values["Controller"] = routePair.ControllerName;
+                RequestArgs.CurrentRequestContext.RouteData.Values["Action"] = routePair.ActionName;
+
+                foreach (string Key in routePair.RouteValues.Keys)
+                {
+                    RequestArgs.CurrentRequestContext.RouteData.Values[Key] = routePair.RouteValues[Key];
+                }
 
                 // Allow users to adjust the RequestContext further
                 RequestRoutingHandler.FinishEvent();
@@ -84,6 +91,7 @@ namespace DynamicRouting.Kentico.MVC
                 // Pass back context
                 RequestContext = RequestArgs.CurrentRequestContext;
             }
+
             IControllerFactory factory = ControllerBuilder.Current.GetControllerFactory();
             IController controller = factory.CreateController(RequestContext, routePair.ControllerName);
             controller.Execute(RequestContext);
@@ -91,6 +99,11 @@ namespace DynamicRouting.Kentico.MVC
             factory.ReleaseController(controller);
         }
 
+        /// <summary>
+        /// Determines where the Controller and Action should be based on the dynamic routing data
+        /// </summary>
+        /// <param name="node"></param>
+        /// <returns></returns>
         private DynamicRouteConfiguration ResolveRouteValues(ITreeNode node)
         {
             string defaultController = RequestContext.RouteData.Values.ContainsKey("controller")
@@ -101,11 +114,11 @@ namespace DynamicRouting.Kentico.MVC
                 ? RequestContext.RouteData.Values["action"].ToString()
                 : "";
 
-            if(string.IsNullOrWhiteSpace(defaultController))
+            if (string.IsNullOrWhiteSpace(defaultController))
             {
                 defaultController = "DynamicRoute";
             }
-            if(string.IsNullOrWhiteSpace(defaultAction))
+            if (string.IsNullOrWhiteSpace(defaultAction))
             {
                 defaultAction = "RouteValuesNotFound";
             }

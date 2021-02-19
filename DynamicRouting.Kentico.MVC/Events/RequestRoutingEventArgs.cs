@@ -17,6 +17,7 @@ namespace DynamicRouting
         /// <summary>
         /// The Route Configuration that was determined by the MVC DynamicRouting attributes.
         /// The RouteData's Controller and Action values are automatically set to the Configuration.ControllerName and Configuration.ActionName
+        /// UseOutputCaching only applies to the DynamicRoute Controller, and IncludeDocumentInOutputCache applies to Template and DynamicRoute Controllers
         /// <see cref="https://github.com/KenticoDevTrev/DynamicRouting/blob/master/DynamicRouting.Kentico.MVC/DynamicHttpHandler.cs"/>
         /// </summary>
         public DynamicRouteConfiguration Configuration { get; set; }
