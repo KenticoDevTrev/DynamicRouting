@@ -24,7 +24,12 @@ The RegisterPageRoute system only differs from Dynamic Routing in the following 
 1. View-only routing (basic where no controller is defined) now accepts a model of `Kentico.Content.Web.Mvc.Routing.IPageViewModel<TreeNode>` or `Kentico.Content.Web.Mvc.Routing.IPageViewModel<YourTreeNodeModel>`
 1. Dynamic Routing had various Event hooks, currently those do not exist in Xperience 13 but i have requested they add them in.
 
-To remove Dynamic Routing from the project, run this SQL script.  The first part copies custom URL slugs, the second removes Dynamic Routing complety.  Be sure to go into Kentico admin and System -> Restart Application afterwards. 
+## Removing Dynamic Routing
+To remove Dynamic Routing from the project:
+
+1. Remove the Dynamic Routing Nuget Packages.
+2. Run this SQL script below.  The first part copies custom URL slugs, the second removes Dynamic Routing complety.  
+3. Go into Kentico admin and System -> Restart Application afterwards. 
 ``` sql
 
 -- Copy custom URL slugs to alternative urls
@@ -49,6 +54,7 @@ delete from CMS_Class where ClassResourceID = @DRResourceID
 delete from CMS_Resource where ResourceID = @DRResourceID
 
 ```
+
 
 
 ## Installation
