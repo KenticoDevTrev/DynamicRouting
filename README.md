@@ -24,6 +24,33 @@ The RegisterPageRoute system only differs from Dynamic Routing in the following 
 1. View-only routing (basic where no controller is defined) now accepts a model of `Kentico.Content.Web.Mvc.Routing.IPageViewModel<TreeNode>` or `Kentico.Content.Web.Mvc.Routing.IPageViewModel<YourTreeNodeModel>`
 1. Dynamic Routing had various Event hooks, currently those do not exist in Xperience 13 but i have requested they add them in.
 
+To remove Dynamic Routing from the project, run this SQL script.  The first part copies custom URL slugs, the second removes Dynamic Routing complety.  Be sure to go into Kentico admin and System -> Restart Application afterwards. 
+``` sql
+
+-- Copy custom URL slugs to alternative urls
+insert into CMS_AlternativeUrl
+select newID() as AlternativeUrlGUID,
+(select top 1 DocumentID from View_CMS_Tree_Joined where NodeID = UrlSlugNodeID and DocumentCulture = UrlSlugCultureCode) as AlternativeUrlDocumentID,
+(select top 1 NodeSiteID from View_CMS_Tree_Joined where NodeID = UrlSlugNodeID and DocumentCulture = UrlSlugCultureCode) as AlternativeUrlSiteID,
+ RIGHT(UrlSlug, LEN(UrlSlug) - 1) as AlternativeUrlUrl,
+GETDATE() as AlternativeUrlLastMOdified
+from DynamicRouting_UrlSlug where UrlSlugIsCustom = 1 and UrlSlug <> '/'
+
+-- Remove Dynamic Routing
+declare @DRResourceID int;
+set @DRResourceID = (select top 1 ResourceID from CMS_Resource where ResourceName = 'DynamicRouting.Kentico')
+delete from CMS_UIElement where ElementResourceID = @DRResourceID
+delete from CMS_Permission where ResourceID = @DRResourceID
+delete from CMS_SettingsKey where KeyCategoryID in (Select CategoryID from CMS_SettingsCategory where CategoryResourceID = @DRResourceID)
+delete from CMS_SettingsCategory where CategoryResourceID = @DRResourceID
+delete from CMS_AlternativeForm where FormClassID in (select ClassID from CMS_Class where ClassResourceID = @DRResourceID)
+delete from CMS_Query where ClassID in (select CMS_Class.ClassID from CMS_Class where ClassResourceID = @DRResourceID)
+delete from CMS_Class where ClassResourceID = @DRResourceID
+delete from CMS_Resource where ResourceID = @DRResourceID
+
+```
+
+
 ## Installation
 
 ### Installing on the Admin ("Mother")
