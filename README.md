@@ -32,6 +32,8 @@ where URlSLugCultureCode = 'en-US' and RIGHT(UrlSlug, LEN(URlSlug)-1) <> PageUrl
 order by ClassName, UrlSlug
 ```
 
+I Also have a script that can regenerate the URLs, i'm awaiting Kentico approval to post them.  Email me tfayas@hbs.net if you need help!
+
 ## Post Upgrade
 1. Once upgraded to 13, remove Dynamic Routing Nuget Packages
 1. Replace the [assembly: DynamicRouting] Attribute with [assembly: RegisterPageRoute]
