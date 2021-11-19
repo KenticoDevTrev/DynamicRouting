@@ -83,6 +83,7 @@ delete from CMS_SettingsCategory where CategoryResourceID = @DRResourceID
 delete from CMS_AlternativeForm where FormClassID in (select ClassID from CMS_Class where ClassResourceID = @DRResourceID)
 delete from CMS_Query where ClassID in (select CMS_Class.ClassID from CMS_Class where ClassResourceID = @DRResourceID)
 delete from CMS_Class where ClassResourceID = @DRResourceID
+-- delete from CMS_ResourceSite where ResourceID = @DRResourceID -- may also be needed
 delete from CMS_Resource where ResourceID = @DRResourceID
 
 ```
