@@ -8,21 +8,51 @@ While the main module consistant of a Kentico "Mother" Nuget package ([DynamicRo
 Dynamic routing is no longer needed in Xperience 13, as they now have implemented their own solution  
 
 In order to upgrade, here's a couple things you'll want to do:
+## URL Differences and Pre Upgrade
+Dynamic routing handles URLs slightly different than KX13, the big difference is with Page Types without a defined ClassUrlPattern. Dynamic Routing **defaulted** that value to `{% NodeAliasPath %}`, KX13 (during upgrade) treats these classes as **Non Url** page types (disables the URL Feature).
+
+This also impacts how URLs are generated if Content-Tree-Based routing is enabled on KX13.  In Dynamic Routing, {% NodeAliasPath %} would indeed use the NodeAliasPath, however on Content-Tree-Based routing in KX13, it uses the NodeAlias and the NodeAlias of all ancestors ***that have the URL feature enabled***.
+
+This means if you have a page type (such as a folder) that didn't have a ClassURLPattern, it will now be excluded from URL generation.  /Articles/2020/May/MyArticle (where 2020 and May were folders) will be treated as /Articles/MyArticle instead of it's proper NodeAliasPath.
+
+Additionally, if URLs conflicted in Dynamic Routing, it did the -(#) extension, in KX13 it appends a guid to the end of the Url.
+
+So please consider doing the following before upgrading:
+1. Use [this URL checking script ](https://github.com/mcbeev/Kentico-Xperience-SQL-Utility-Scripts/blob/master/src/KX12/KenticoCheckUrlPatternsForUpgrade.v12.sql) to find and fix any page types that may need fixing, you may have to also use [this container page type to coupled](https://github.com/mcbeev/Kentico-Xperience-SQL-Utility-Scripts/blob/master/src/KX12/KenticoConvertContainerPageTypeToCoupled.v12.sql) script to fix things like folders if the folder is a Container vs. a coupled class.
+2. You should also check and clean up any alternative URLs that match the NodeAliasPath of pages as this can cause 'conflicts' when it generates the URLs upon upgrade.
+
+Ultimately even with these things, the urls still may end up slightly wonky.  You can use the below SQL script **AFTER** upgrading to detect differences (do so before removing dynamic routing)
+
+``` sql
+select NodeAliasPath, UrlSlug, PageUrlPathUrlPath, UrlSlugCultureCode, PageUrlPathNodeID, ClassName, AlternativeUrlDocumentID from DynamicRouting_UrlSlug 
+left join CMS_PageUrlPath on PageUrlPathNodeID = UrlSlugNodeID and PageUrlPathCulture = UrlSlugCultureCode
+left join View_CMS_Tree_Joined on NodeID = UrlSlugNodeID and DocumentCulture = UrlSlugCultureCode
+left outer join CMS_AlternativeUrl on AlternativeUrlUrl = RIGHT(UrlSlug, LEN(URlSlug)-1)
+where URlSLugCultureCode = 'en-US' and RIGHT(UrlSlug, LEN(URlSlug)-1) <> PageUrlPathUrlPath 
+order by ClassName, UrlSlug
+```
+
+## Post Upgrade
 1. Once upgraded to 13, remove Dynamic Routing Nuget Packages
 1. Replace the [assembly: DynamicRouting] Attribute with [assembly: RegisterPageRoute]
 1. Since Dynamic Routing depended on an "Empty" Page template, and this will no longer be there, you may need to update your CMS_Documents / CMS_Version and manually remove the Empty.Template page template configuration from the database.  
--`update CMS_Document set DocumentPageTemplateConfiguration = null where DocumentPageTemplateConfiguration = '{"identifier":"Empty.Template","properties":null}'`
--`update [CMS_VersionHistory] set NodeXML = REPLACE(NodeXML, '<DocumentPageTemplateConfiguration>{"identifier":"Empty.Template","properties":null}</DocumentPageTemplateConfiguration>', '<DocumentPageTemplateConfiguration />') where NodeXml like '%{"identifier":"Empty.Template","properties":null}%'`
-1. You will no longer need the Dynamic Routing constraint on routes.
+
+``` sql
+update CMS_Document set DocumentPageTemplateConfiguration = null where DocumentPageTemplateConfiguration = '{"identifier":"Empty.Template","properties":null}'`
+
+update [CMS_VersionHistory] set NodeXML = REPLACE(NodeXML, '<DocumentPageTemplateConfiguration>{"identifier":"Empty.Template","properties":null}</DocumentPageTemplateConfiguration>', '<DocumentPageTemplateConfiguration />') where NodeXml like '%{"identifier":"Empty.Template","properties":null}%'
+```
+4. You will no longer need the Dynamic Routing constraint on routes.
+
 
 The RegisterPageRoute system only differs from Dynamic Routing in the following areas:
 1. You must use Settings -> URLs and SEO -> Routing Mode: Based on content tree and the page type route must match the `{%NodeAliasPath%}` or `{%Culture%}/{%NodeAliasPath%}`, Dynamic routing allowed for any URL Pattern although routing on NodeAliasPath was the recommended route
-1. Custom URL Slugs is not available, but you can use the normal Kentico Alias system
-1. You no longer needs special Home Page routing, Kentico provides that through the Settings -> URLs and SEO -> Content tree-based routing -> Home page.
-1. `IDynamicRouteHelper.GetPage` has been replaced with Kentico's `IPageDataContextRetriever.Retrieve`
-1. Xperience 13's Routing allows you to specify different controllers based on NodeAliasPath (similar to the MVC Areas Concept)
-1. View-only routing (basic where no controller is defined) now accepts a model of `Kentico.Content.Web.Mvc.Routing.IPageViewModel<TreeNode>` or `Kentico.Content.Web.Mvc.Routing.IPageViewModel<YourTreeNodeModel>`
-1. Dynamic Routing had various Event hooks, currently those do not exist in Xperience 13 but i have requested they add them in.
+2. Custom URL Slugs is not available, but you can use the normal Kentico Alias system
+. You no longer needs special Home Page routing, Kentico provides that through the Settings -> URLs and SEO -> Content tree-based routing -> Home page.
+9. `IDynamicRouteHelper.GetPage` has been replaced with Kentico's `IPageDataContextRetriever.Retrieve`
+10. Xperience 13's Routing allows you to specify different controllers based on NodeAliasPath (similar to the MVC Areas Concept)
+11. View-only routing (basic where no controller is defined) now accepts a model of `Kentico.Content.Web.Mvc.Routing.IPageViewModel<TreeNode>` or `Kentico.Content.Web.Mvc.Routing.IPageViewModel<YourTreeNodeModel>`
+12. Dynamic Routing had various Event hooks, currently those do not exist in Xperience 13 but i have requested they add them in.
 
 ## Removing Dynamic Routing
 To remove Dynamic Routing from the project:
