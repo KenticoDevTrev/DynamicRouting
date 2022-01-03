@@ -21,6 +21,11 @@ So please consider doing the following before upgrading:
 1. Use [this URL checking script ](https://github.com/mcbeev/Kentico-Xperience-SQL-Utility-Scripts/blob/master/src/KX12/KenticoCheckUrlPatternsForUpgrade.v12.sql) to find and fix any page types that may need fixing, you may have to also use [this container page type to coupled](https://github.com/mcbeev/Kentico-Xperience-SQL-Utility-Scripts/blob/master/src/KX12/KenticoConvertContainerPageTypeToCoupled.v12.sql) script to fix things like folders if the folder is a Container vs. a coupled class.
 2. You should also check and clean up any alternative URLs that match the NodeAliasPath of pages as this can cause 'conflicts' when it generates the URLs upon upgrade.
 
+
+
+## Post Upgrade
+
+### Fixing Urls
 Ultimately even with these things, the urls still may end up slightly wonky.  You can use the below SQL script **AFTER** upgrading to detect differences (do so before removing dynamic routing)
 
 ``` sql
@@ -32,10 +37,14 @@ where URlSLugCultureCode = 'en-US' and RIGHT(UrlSlug, LEN(URlSlug)-1) <> PageUrl
 order by ClassName, UrlSlug
 ```
 
-I Also have a script that can regenerate the URLs, i'm awaiting Kentico approval to post them.  Email me tfayas@hbs.net if you need help!
+1. [Add these files](https://github.com/KenticoDevTrev/DynamicRouting/blob/master/URLGenerator.zip) to your KenticoAdmin (under `CMSPages/Custom` is fine)
+2. Add the files to your project and rebuild.
+3. BACKUP DATABASE (just in case)
+4. Go to the `URLGenerator.aspx` page and regenerate
+5. Rerun the above SQL script to see if any Urls do not match their NodeAliasPath
 
-## Post Upgrade
-1. Once upgraded to 13, remove Dynamic Routing Nuget Packages
+### Replace Dynamic Routing (MVC side)
+1. Once upgraded to 13, and you're sure Urls are fixed, Remove Dynamic Routing Nuget Packages on the MVC Project
 1. Replace the [assembly: DynamicRouting] Attribute with [assembly: RegisterPageRoute]
 1. Since Dynamic Routing depended on an "Empty" Page template, and this will no longer be there, you may need to update your CMS_Documents / CMS_Version and manually remove the Empty.Template page template configuration from the database.  
 
@@ -46,7 +55,6 @@ update [CMS_VersionHistory] set NodeXML = REPLACE(NodeXML, '<DocumentPageTemplat
 ```
 4. You will no longer need the Dynamic Routing constraint on routes.
 
-
 The RegisterPageRoute system only differs from Dynamic Routing in the following areas:
 1. You must use Settings -> URLs and SEO -> Routing Mode: Based on content tree and the page type route must match the `{%NodeAliasPath%}` or `{%Culture%}/{%NodeAliasPath%}`, Dynamic routing allowed for any URL Pattern although routing on NodeAliasPath was the recommended route
 2. Custom URL Slugs is not available, but you can use the normal Kentico Alias system
@@ -56,10 +64,10 @@ The RegisterPageRoute system only differs from Dynamic Routing in the following 
 11. View-only routing (basic where no controller is defined) now accepts a model of `Kentico.Content.Web.Mvc.Routing.IPageViewModel<TreeNode>` or `Kentico.Content.Web.Mvc.Routing.IPageViewModel<YourTreeNodeModel>`
 12. Dynamic Routing had various Event hooks, currently those do not exist in Xperience 13 but i have requested they add them in.
 
-## Removing Dynamic Routing
-To remove Dynamic Routing from the project:
+### Removing Dynamic Routing (Admin side)
+To remove Dynamic Routing from the admin project:
 
-1. Remove the Dynamic Routing Nuget Packages.
+1. Remove the Dynamic Routing Nuget Packages. (Do **NOT** run the site yet)
 2. Run this SQL script below.  The first part copies custom URL slugs, the second removes Dynamic Routing complety.  
 3. Go into Kentico admin and System -> Restart Application afterwards. 
 ``` sql
@@ -73,7 +81,7 @@ select newID() as AlternativeUrlGUID,
 GETDATE() as AlternativeUrlLastMOdified
 from DynamicRouting_UrlSlug where UrlSlugIsCustom = 1 and UrlSlug <> '/'
 
--- Remove Dynamic Routing
+-- Remove Dynamic Routing module in Kentico
 declare @DRResourceID int;
 set @DRResourceID = (select top 1 ResourceID from CMS_Resource where ResourceName = 'DynamicRouting.Kentico')
 delete from CMS_UIElement where ElementResourceID = @DRResourceID
@@ -88,7 +96,7 @@ delete from CMS_Resource where ResourceID = @DRResourceID
 
 ```
 
-
+Now you can run the site, and if `Modules` -> `Dynamic Routing` is still there, you can delete it.
 
 ## Installation
 
