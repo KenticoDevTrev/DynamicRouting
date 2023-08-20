@@ -84,7 +84,9 @@ from DynamicRouting_UrlSlug where UrlSlugIsCustom = 1 and UrlSlug <> '/'
 -- Remove Dynamic Routing module in Kentico
 declare @DRResourceID int;
 set @DRResourceID = (select top 1 ResourceID from CMS_Resource where ResourceName = 'DynamicRouting.Kentico')
+delete from CMS_RoleUIElement where ElementID in (Select ElementID from CMS_UIElement where ElementResourceID = @DRResourceID)
 delete from CMS_UIElement where ElementResourceID = @DRResourceID
+delete from CMS_RolePermission where PermissionID in (select PermissionID from CMS_Permission where ResourceID = @DRResourceID)
 delete from CMS_Permission where ResourceID = @DRResourceID
 delete from CMS_SettingsKey where KeyCategoryID in (Select CategoryID from CMS_SettingsCategory where CategoryResourceID = @DRResourceID)
 delete from CMS_SettingsCategory where CategoryResourceID = @DRResourceID
